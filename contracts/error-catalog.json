@@ -1,0 +1,16 @@
+{
+  "codes": [
+    { "code": "FILE-001", "category": "FILE", "stage": "upload", "title": "不支持的文件格式", "message": "仅支持 .xls 和 .xlsx 文件。" },
+    { "code": "FILE-002", "category": "FILE", "stage": "upload", "title": "文件超过大小限制", "message": "单个文件不能超过 10 MB。" },
+    { "code": "TEMPLATE-001", "category": "TEMPLATE", "stage": "template", "title": "未找到唯一目标工作表", "message": "必须恰好识别一个可见且兼容的目标工作表。" },
+    { "code": "TEMPLATE-002", "category": "TEMPLATE", "stage": "template", "title": "时间段标题无效", "message": "时间段标题必须使用 yyyy.MM.dd - yyyy.MM.dd 格式并通过严格日期校验。" },
+    { "code": "TEMPLATE-003", "category": "TEMPLATE", "stage": "template", "title": "时间段顺序无效", "message": "时间段的开始日期和结束日期必须从上到下严格递增。" },
+    { "code": "TEMPLATE-004", "category": "TEMPLATE", "stage": "template", "title": "最新数据区不兼容", "message": "最新时间段表头下的 A:D 只能包含连续股票数据。" },
+    { "code": "TEMPLATE-005", "category": "TEMPLATE", "stage": "template", "title": "工作簿包含不支持功能", "message": "当前 Excel 功能无法保证原样保留。" },
+    { "code": "INPUT-001", "category": "INPUT", "stage": "input", "title": "股票代码输入无效", "message": "股票代码必须是保持顺序的六位纯数字列表。" },
+    { "code": "MARKET-001", "category": "MARKET", "stage": "market", "title": "股票清单校验失败", "message": "股票代码不是当前上市沪深京 A 股。" },
+    { "code": "MARKET-002", "category": "MARKET", "stage": "market", "title": "指定日期无行情", "message": "指定日期没有所需的不复权行情。" },
+    { "code": "OUTPUT-001", "category": "OUTPUT", "stage": "output", "title": "工作簿写入失败", "message": "允许写入或输出文件自检失败。" },
+    { "code": "SYSTEM-001", "category": "SYSTEM", "stage": "system", "title": "任务超时", "message": "任务超过 180 秒限制。" }
+  ]
+}

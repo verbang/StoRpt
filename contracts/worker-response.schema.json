@@ -1,0 +1,37 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://storpt.local/contracts/worker-response.schema.json",
+  "title": "StoRpt Excel Worker response",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["status"],
+  "properties": {
+    "status": { "type": "string", "enum": ["success", "error"] },
+    "outputPath": { "type": "string", "minLength": 1 },
+    "metadata": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["sheetIndex", "sheetName", "periods", "latestPeriod"],
+      "properties": {
+        "sheetIndex": { "type": "integer", "minimum": 0 },
+        "sheetName": { "type": "string", "minLength": 1 },
+        "periods": { "type": "array" },
+        "latestPeriod": { "type": "object" }
+      }
+    },
+    "errors": {
+      "type": "array",
+      "items": { "$ref": "error-codes.json#/$defs/error" }
+    }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "status": { "const": "success" } } },
+      "then": { "required": ["outputPath", "metadata"] }
+    },
+    {
+      "if": { "properties": { "status": { "const": "error" } } },
+      "then": { "required": ["errors"], "not": { "required": ["outputPath"] } }
+    }
+  ]
+}

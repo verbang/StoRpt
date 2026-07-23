@@ -1,0 +1,43 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://storpt.local/contracts/error-codes.json",
+  "title": "StoRpt stable error codes",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["codes"],
+  "properties": {
+    "codes": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/errorDefinition" }
+    }
+  },
+  "$defs": {
+    "error": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["code", "category", "stage", "title", "message"],
+      "properties": {
+        "code": { "type": "string", "pattern": "^(AUTH|FILE|TEMPLATE|INPUT|MARKET|OUTPUT|SYSTEM)-[0-9]{3}$" },
+        "category": { "type": "string" },
+        "stage": { "type": "string" },
+        "title": { "type": "string" },
+        "message": { "type": "string" },
+        "codes": { "type": "array", "items": { "type": "string", "pattern": "^[0-9]{6}$" } },
+        "dates": { "type": "array", "items": { "type": "string" } },
+        "fields": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "errorDefinition": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["code", "category", "stage", "title", "message"],
+      "properties": {
+        "code": { "type": "string", "pattern": "^(AUTH|FILE|TEMPLATE|INPUT|MARKET|OUTPUT|SYSTEM)-[0-9]{3}$" },
+        "category": { "type": "string" },
+        "stage": { "type": "string" },
+        "title": { "type": "string" },
+        "message": { "type": "string" }
+      }
+    }
+  }
+}
