@@ -114,16 +114,12 @@ public final class TemplateAnalyzer {
     for (int rowIndex = period.dataStartRow(); rowIndex <= sheet.getLastRowNum(); rowIndex++) {
       Row row = sheet.getRow(rowIndex);
       boolean hasData = false;
-      boolean hasCode = false;
       for (int columnIndex = 0; columnIndex <= 3; columnIndex++) {
         Cell cell = row == null ? null : row.getCell(columnIndex);
         if (isBlank(cell)) {
           continue;
         }
         hasData = true;
-        if (columnIndex == 0) {
-          hasCode = true;
-        }
         if (cell.getCellType() == CellType.FORMULA || isMerged(sheet, rowIndex, columnIndex)) {
           throw error(
               "TEMPLATE-004",
@@ -135,7 +131,7 @@ public final class TemplateAnalyzer {
         gapFound = true;
         continue;
       }
-      if (gapFound || !hasCode) {
+      if (gapFound) {
         throw error(
             "TEMPLATE-004",
             "最新时间段的 A:D 必须是连续股票数据，不能在空行后继续出现数据。");

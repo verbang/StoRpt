@@ -87,12 +87,17 @@ public record WorkbookSnapshot(
           cells.add(captureCell(workbook, cell));
         }
       }
-      rows.add(new RowSnapshot(
-          row.getRowNum(),
-          row.getHeight(),
-          row.getZeroHeight(),
-          row.getOutlineLevel(),
-          cells));
+      boolean hasNonDefaultRowMetadata = row.getHeight() != sheet.getDefaultRowHeight()
+          || row.getZeroHeight()
+          || row.getOutlineLevel() != 0;
+      if (!cells.isEmpty() || hasNonDefaultRowMetadata) {
+        rows.add(new RowSnapshot(
+            row.getRowNum(),
+            row.getHeight(),
+            row.getZeroHeight(),
+            row.getOutlineLevel(),
+            cells));
+      }
     }
 
     List<String> mergedRegions = new ArrayList<>();

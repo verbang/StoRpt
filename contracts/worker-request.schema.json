@@ -22,14 +22,24 @@
     "changes": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["startDate", "endDate", "codes", "fillName", "fillIdealBuy", "fillIdealSell"],
+      "required": ["startDate", "endDate", "rows", "fillName", "fillIdealBuy", "fillIdealSell"],
       "properties": {
         "startDate": { "type": "string", "pattern": "^[0-9]{4}\\.[0-9]{2}\\.[0-9]{2}$" },
         "endDate": { "type": "string", "pattern": "^[0-9]{4}\\.[0-9]{2}\\.[0-9]{2}$" },
-        "codes": {
+        "rows": {
           "type": "array",
           "minItems": 1,
-          "items": { "type": "string", "pattern": "^[0-9]{6}$" }
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["code"],
+            "properties": {
+              "code": { "type": "string", "pattern": "^[0-9]{6}$" },
+              "name": { "type": "string", "minLength": 1 },
+              "idealBuy": { "type": "number" },
+              "idealSell": { "type": "number" }
+            }
+          }
         },
         "fillName": { "type": "boolean" },
         "fillIdealBuy": { "type": "boolean" },

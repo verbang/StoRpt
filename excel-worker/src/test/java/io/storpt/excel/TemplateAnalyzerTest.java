@@ -113,6 +113,19 @@ class TemplateAnalyzerTest {
   }
 
   @Test
+  void acceptsPreservedOptionalValuesWithoutCode() throws Exception {
+    try (Workbook workbook = new XSSFWorkbook()) {
+      Sheet sheet = workbook.createSheet("Sheet1");
+      addPeriod(sheet, 0, "2026.01.05 - 2026.01.09");
+      sheet.createRow(2).createCell(1).setCellValue("保留的原值");
+
+      TemplateMetadata metadata = analyzer.analyze(workbook);
+
+      assertEquals(2, metadata.latestPeriod().dataEndRow());
+    }
+  }
+
+  @Test
   void rejectsInvalidCalendarDate() throws Exception {
     try (Workbook workbook = new XSSFWorkbook()) {
       addPeriod(workbook.createSheet("Sheet1"), 0, "2026.02.30 - 2026.03.06");
