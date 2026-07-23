@@ -1,0 +1,16 @@
+# Build output
+excel-worker/target/
+
+# Local tooling
+.idea/
+.vscode/
+*.iml
+
+# Operating-system files
+.DS_Store
+Thumbs.db
+
+# Temporary workbook output
+*.probe-output.xls
+*.probe-output.xlsx
+
