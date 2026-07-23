@@ -1,0 +1,50 @@
+name: Excel technical validation
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - ".github/workflows/technical-validation.yml"
+      - "excel-worker/**"
+      - "platform.xlsx"
+      - "docs/technical-validation.md"
+  pull_request:
+    paths:
+      - ".github/workflows/technical-validation.yml"
+      - "excel-worker/**"
+      - "platform.xlsx"
+      - "docs/technical-validation.md"
+
+permissions:
+  contents: read
+
+jobs:
+  workbook-fidelity:
+    name: Workbook fidelity (Java 21)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Java 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: maven
+          cache-dependency-path: excel-worker/pom.xml
+
+      - name: Run workbook validation tests
+        run: mvn --batch-mode --file excel-worker/pom.xml verify
+
+      - name: Upload test reports on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: excel-worker-test-reports
+          path: excel-worker/target/surefire-reports/
+          if-no-files-found: ignore
+          retention-days: 7
+
