@@ -22,6 +22,7 @@ public record WorkbookSnapshot(
     int activeSheetIndex,
     int firstVisibleTab,
     boolean forceFormulaRecalculation,
+    String calculationMode,
     List<NameSnapshot> names,
     List<SheetSnapshot> sheets) {
 
@@ -53,6 +54,7 @@ public record WorkbookSnapshot(
         workbook.getActiveSheetIndex(),
         workbook.getFirstVisibleTab(),
         workbook.getForceFormulaRecalculation(),
+        workbook.getCalculationMode().name(),
         names,
         sheets);
   }

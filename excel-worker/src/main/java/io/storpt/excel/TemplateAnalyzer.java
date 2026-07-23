@@ -11,6 +11,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import org.apache.poi.ss.usermodel.Cell;
 import org.apache.poi.ss.usermodel.CellType;
+import org.apache.poi.ss.usermodel.CalculationMode;
 import org.apache.poi.ss.usermodel.Row;
 import org.apache.poi.ss.usermodel.Sheet;
 import org.apache.poi.ss.usermodel.SheetVisibility;
@@ -35,6 +36,10 @@ public final class TemplateAnalyzer {
   public TemplateMetadata analyze(Workbook workbook) throws TemplateAnalysisException {
     if (workbook == null) {
       throw error("TEMPLATE-001", "工作簿不能为空。");
+    }
+    if (workbook.getCalculationMode() == CalculationMode.MANUAL
+        && !workbook.getForceFormulaRecalculation()) {
+      throw error("TEMPLATE-005", "工作簿必须启用自动计算或打开时重新计算。");
     }
 
     List<SheetAnalysis> candidates = new ArrayList<>();

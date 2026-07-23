@@ -7,6 +7,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.LocalDate;
+import org.apache.poi.ss.usermodel.CalculationMode;
 import org.apache.poi.ss.usermodel.Row;
 import org.apache.poi.ss.usermodel.Sheet;
 import org.apache.poi.ss.usermodel.SheetVisibility;
@@ -122,6 +123,22 @@ class TemplateAnalyzerTest {
       TemplateMetadata metadata = analyzer.analyze(workbook);
 
       assertEquals(2, metadata.latestPeriod().dataEndRow());
+    }
+  }
+
+  @Test
+  void rejectsManualCalculationWithoutOpenRecalculation() throws Exception {
+    try (Workbook workbook = new XSSFWorkbook()) {
+      Sheet sheet = workbook.createSheet("Sheet1");
+      addPeriod(sheet, 0, "2026.01.05 - 2026.01.09");
+      workbook.setCalculationMode(CalculationMode.MANUAL);
+      workbook.setForceFormulaRecalculation(false);
+
+      TemplateAnalysisException exception = assertThrows(
+          TemplateAnalysisException.class,
+          () -> analyzer.analyze(workbook));
+
+      assertEquals("TEMPLATE-005", exception.code());
     }
   }
 
