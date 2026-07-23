@@ -54,7 +54,7 @@ public record WorkbookSnapshot(
         workbook.getActiveSheetIndex(),
         workbook.getFirstVisibleTab(),
         workbook.getForceFormulaRecalculation(),
-        workbook.getCalculationMode().name(),
+        WorkbookCalculation.mode(workbook),
         names,
         sheets);
   }

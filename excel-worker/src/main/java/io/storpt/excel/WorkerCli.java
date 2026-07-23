@@ -2,6 +2,7 @@ package io.storpt.excel;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import java.io.IOException;
@@ -45,6 +46,9 @@ public final class WorkerCli {
     } catch (TemplateAnalysisException | WorkbookWriteException exception) {
       response = failure(exception instanceof TemplateAnalysisException analysis
           ? analysis.code() : ((WorkbookWriteException) exception).code(), exception.getMessage());
+      exitCode = 1;
+    } catch (JsonProcessingException exception) {
+      response = failure("INPUT-001", "Worker 请求不是有效 JSON。");
       exitCode = 1;
     } catch (Exception exception) {
       response = failure(
