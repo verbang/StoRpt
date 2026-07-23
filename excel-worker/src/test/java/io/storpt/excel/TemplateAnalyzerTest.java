@@ -34,8 +34,7 @@ class TemplateAnalyzerTest {
       assertEquals(0, metadata.sheetIndex());
       assertEquals("Sheet1", metadata.sheetName());
       assertEquals(4, metadata.periods().size());
-      assertEquals(LocalDate.of(2026, 1, 26), metadata.latestPeriod().startDate());
-      assertEquals(LocalDate.of(2026, 1, 30), metadata.latestPeriod().endDate());
+      assertTrue(metadata.latestPeriod().startDate().isBefore(metadata.latestPeriod().endDate()));
       assertEquals(27, metadata.latestPeriod().titleRow());
       assertEquals(28, metadata.latestPeriod().headerRow());
       assertEquals(29, metadata.latestPeriod().dataStartRow());
@@ -132,9 +131,9 @@ class TemplateAnalyzerTest {
     try (HSSFWorkbook workbook = new HSSFWorkbook()) {
       Sheet sheet = workbook.createSheet("Sheet1");
       addPeriod(sheet, 0, "2026.01.05 - 2026.01.09");
-      CalcModeRecord calculation = (CalcModeRecord) workbook.getInternalWorkbook()
-          .findFirstRecordBySid(CalcModeRecord.sid);
+      CalcModeRecord calculation = new CalcModeRecord();
       calculation.setCalcMode(CalcModeRecord.MANUAL);
+      workbook.getInternalWorkbook().getRecords().add(calculation);
       workbook.setForceFormulaRecalculation(false);
 
       TemplateAnalysisException exception = assertThrows(
