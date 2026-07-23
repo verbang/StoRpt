@@ -107,8 +107,8 @@ public record WorkbookSnapshot(
         workbook.getSheetVisibility(sheetIndex).name(),
         sheet.getDefaultColumnWidth(),
         sheet.getDefaultRowHeight(),
-        sheet.getDisplayGridlines(),
-        sheet.getPrintGridlines(),
+        sheet.isDisplayGridlines(),
+        sheet.isPrintGridlines(),
         sheet.getFitToPage(),
         columns,
         rows,
@@ -176,8 +176,7 @@ public record WorkbookSnapshot(
         font.getColor(),
         font.getTypeOffset(),
         font.getUnderline(),
-        font.getCharSet(),
-        font.getFamily());
+        font.getCharSet());
 
     return new StyleSnapshot(
         style.getDataFormatString(),
@@ -293,6 +292,5 @@ public record WorkbookSnapshot(
       short color,
       short typeOffset,
       byte underline,
-      int charset,
-      int family) {}
+      int charset) {}
 }
