@@ -30,9 +30,20 @@ jobs:
           python-version: "3.12"
           cache: pip
           cache-dependency-path: backend/pyproject.toml
+      - name: Set up Java 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: maven
+          cache-dependency-path: excel-worker/pom.xml
+      - name: Build Excel Worker JAR
+        run: mvn --batch-mode --file excel-worker/pom.xml -DskipTests package
       - name: Install backend test dependencies
         run: python -m pip install --disable-pip-version-check "./backend[test]"
       - name: Run backend tests
         run: python -m pytest backend/tests
+        env:
+          STORPT_WORKER_JAR: excel-worker/target/excel-worker-0.1.0-SNAPSHOT.jar
       - name: Validate Python syntax
         run: python -m compileall -q backend/storpt_api
