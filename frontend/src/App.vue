@@ -224,7 +224,8 @@ async function analyzeFile(file: File) {
 function openCalendar(target: "start" | "end") {
   const input = target === "start" ? startCalendar.value : endCalendar.value;
   if (!input || processing.value) return;
-  if ("showPicker" in input) input.showPicker();
+  const picker = input as HTMLInputElement & { showPicker?: () => void };
+  if (typeof picker.showPicker === "function") picker.showPicker();
   else input.click();
 }
 
