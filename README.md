@@ -6,9 +6,9 @@ strictly compatible Excel workbook. The MVP product baseline is documented in
 
 ## Current stage
 
-The project is in the technical-validation stage. The first release gate is to
-prove that Apache POI can read, save, reopen, and selectively update compatible
-`.xls` and `.xlsx` workbooks without changing protected workbook content.
+Technical validation and the backend core are complete. The current stage adds
+the authenticated Vue PWA, two-upload workflow, SSE task progress, and
+single-use download delivery.
 
 No local Java, Maven, Node.js, or Docker installation is required. The
 technical validation is designed to run in GitHub Actions.
@@ -17,10 +17,28 @@ technical validation is designed to run in GitHub Actions.
 
 1. Publish this directory as a GitHub repository.
 2. Open the repository's **Actions** page.
-3. Run **Excel technical validation**, or push a change that affects the
-   worker, workflow, template, or validation documents.
-4. Treat a failed fidelity test as a release blocker.
+3. Use **Excel technical validation**, **FastAPI backend validation**, and
+   **PWA frontend validation** as the Java, Python integration, and frontend
+   release gates.
+4. Treat any failed workflow as a release blocker.
 
 The validation scope and remaining exit criteria are tracked in
 [`docs/technical-validation.md`](docs/technical-validation.md).
 
+## Authentication configuration
+
+The service does not store a plaintext access password. Generate a scrypt hash
+using the bundled backend module, then configure the hash and an independent
+random signing secret in the deployment environment:
+
+```sh
+cd backend
+python -m storpt_api.auth
+```
+
+- `STORPT_PASSWORD_HASH`: output from the command above.
+- `STORPT_SESSION_SECRET`: a long random value used only for signing the
+  seven-day session cookie.
+
+If either variable is missing, health checks remain available but login fails
+closed with `SYSTEM-003`.

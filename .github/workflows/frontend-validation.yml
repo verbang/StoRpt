@@ -1,0 +1,34 @@
+name: PWA frontend validation
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - ".github/workflows/frontend-validation.yml"
+      - "frontend/**"
+  pull_request:
+    paths:
+      - ".github/workflows/frontend-validation.yml"
+      - "frontend/**"
+
+permissions:
+  contents: read
+
+jobs:
+  frontend:
+    name: Vue PWA typecheck and build (Node 24)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v5
+      - name: Set up Node 24
+        uses: actions/setup-node@v5
+        with:
+          node-version: "24"
+      - name: Install exact frontend dependencies
+        working-directory: frontend
+        run: npm install --no-audit --no-fund
+      - name: Typecheck and build PWA
+        working-directory: frontend
+        run: npm run build
