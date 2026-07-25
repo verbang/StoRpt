@@ -5,7 +5,7 @@ import threading
 import time
 from datetime import date
 from decimal import Decimal
-from typing import Protocol
+from typing import Callable, Protocol
 
 from .errors import BackendError, input_error
 from .models import MarketRow
@@ -36,6 +36,7 @@ class MarketDataProvider(Protocol):
         fill_name: bool,
         fill_ideal_buy: bool,
         fill_ideal_sell: bool,
+        progress: Callable[[int, int], None] | None = None,
     ) -> list[MarketRow]: ...
 
 
@@ -83,6 +84,7 @@ class AkshareMarketDataProvider:
         fill_name: bool,
         fill_ideal_buy: bool,
         fill_ideal_sell: bool,
+        progress: Callable[[int, int], None] | None = None,
     ) -> list[MarketRow]:
         try:
             import akshare as ak
@@ -92,7 +94,7 @@ class AkshareMarketDataProvider:
         names = self._listing(ak)
 
         result: list[MarketRow] = []
-        for code in codes:
+        for index, code in enumerate(codes, start=1):
             if code not in names:
                 raise BackendError("MARKET-001", "MARKET", "market", "股票清单校验失败", f"股票代码不是当前上市沪深京 A 股：{code}")
             buy: Decimal | None = None
@@ -123,4 +125,6 @@ class AkshareMarketDataProvider:
                 if fill_ideal_sell:
                     sell = Decimal(str(matching_end.iloc[0]["收盘"]))
             result.append(MarketRow(code, names.get(code), buy, sell))
+            if progress is not None:
+                progress(index, len(codes))
         return result

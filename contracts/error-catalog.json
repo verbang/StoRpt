@@ -1,5 +1,8 @@
 {
   "codes": [
+    { "code": "AUTH-001", "category": "AUTH", "stage": "authentication", "title": "登录会话无效", "message": "请先登录，或重新建立已过期的会话。" },
+    { "code": "AUTH-002", "category": "AUTH", "stage": "authentication", "title": "访问密码错误", "message": "访问密码不正确。" },
+    { "code": "AUTH-003", "category": "AUTH", "stage": "authentication", "title": "登录已暂时锁定", "message": "连续登录失败次数过多，请稍后再试。" },
     { "code": "FILE-001", "category": "FILE", "stage": "upload", "title": "不支持的文件格式", "message": "仅支持 .xls 和 .xlsx 文件。" },
     { "code": "FILE-002", "category": "FILE", "stage": "upload", "title": "文件超过大小限制", "message": "单个文件不能超过 10 MB。" },
     { "code": "TEMPLATE-001", "category": "TEMPLATE", "stage": "template", "title": "未找到唯一目标工作表", "message": "必须恰好识别一个可见且兼容的目标工作表。" },
@@ -12,6 +15,9 @@
     { "code": "MARKET-002", "category": "MARKET", "stage": "market", "title": "指定日期无行情", "message": "指定日期没有所需的不复权行情。" },
     { "code": "OUTPUT-001", "category": "OUTPUT", "stage": "output", "title": "工作簿写入失败", "message": "允许写入或输出文件自检失败。" },
     { "code": "SYSTEM-001", "category": "SYSTEM", "stage": "system", "title": "任务超时", "message": "任务超过 180 秒限制。" },
-    { "code": "SYSTEM-002", "category": "SYSTEM", "stage": "system", "title": "任务正在运行", "message": "同一账号同时只允许一个任务。" }
+    { "code": "SYSTEM-002", "category": "SYSTEM", "stage": "system", "title": "任务正在运行", "message": "同一账号同时只允许一个任务。" },
+    { "code": "SYSTEM-003", "category": "SYSTEM", "stage": "system", "title": "认证尚未配置", "message": "部署环境缺少密码哈希或会话签名密钥。" },
+    { "code": "SYSTEM-004", "category": "SYSTEM", "stage": "system", "title": "任务处理失败", "message": "任务遇到未预期的系统错误。" },
+    { "code": "SYSTEM-005", "category": "SYSTEM", "stage": "system", "title": "任务不可用", "message": "任务不存在、尚未完成或已经过期。" }
   ]
 }

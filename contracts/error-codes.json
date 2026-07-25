@@ -24,7 +24,8 @@
         "message": { "type": "string" },
         "codes": { "type": "array", "items": { "type": "string", "pattern": "^[0-9]{6}$" } },
         "dates": { "type": "array", "items": { "type": "string" } },
-        "fields": { "type": "array", "items": { "type": "string" } }
+        "fields": { "type": "array", "items": { "type": "string" } },
+        "retryAfter": { "type": "integer", "minimum": 1 }
       }
     },
     "errorDefinition": {

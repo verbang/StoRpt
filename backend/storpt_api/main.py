@@ -2,14 +2,17 @@ from __future__ import annotations
 
 import asyncio
 import os
+from contextlib import asynccontextmanager, suppress
 from pathlib import Path
 from typing import Annotated
 
-from fastapi import BackgroundTasks, FastAPI, File, Form, Request, UploadFile
+from fastapi import BackgroundTasks, Depends, FastAPI, File, Form, Request, Response, UploadFile
 from fastapi.exceptions import RequestValidationError
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
+from pydantic import BaseModel, ConfigDict
 
-from .errors import BackendError, input_error, system_error
+from .auth import AuthManager, SESSION_COOKIE
+from .errors import BackendError, auth_error, input_error, system_error
 from .market import AkshareMarketDataProvider, parse_codes
 from .models import ProcessInput
 from .service import TaskService
@@ -17,8 +20,16 @@ from .storage import TaskWorkspace
 from .worker import WorkerClient
 
 
-def create_app(service: TaskService | None = None) -> FastAPI:
-    app = FastAPI(title="StoRpt API", version="0.1.0")
+class LoginRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    password: str
+
+
+def create_app(
+    service: TaskService | None = None,
+    auth: AuthManager | None = None,
+) -> FastAPI:
     if service is None:
         workspace = TaskWorkspace(Path(os.getenv("STORPT_TASK_ROOT", ".storpt-tasks")))
         workspace.cleanup_stale()
@@ -27,7 +38,28 @@ def create_app(service: TaskService | None = None) -> FastAPI:
             WorkerClient(Path(os.getenv("STORPT_WORKER_JAR", "excel-worker.jar"))),
             AkshareMarketDataProvider(),
         )
+
+    @asynccontextmanager
+    async def lifespan(_: FastAPI):
+        async def cleanup_tasks() -> None:
+            while True:
+                await asyncio.sleep(60)
+                service.cleanup_stale_tasks()
+
+        cleanup = asyncio.create_task(cleanup_tasks())
+        try:
+            yield
+        finally:
+            cleanup.cancel()
+            with suppress(asyncio.CancelledError):
+                await cleanup
+
+    app = FastAPI(title="StoRpt API", version="0.1.0", lifespan=lifespan)
     app.state.service = service
+    app.state.auth = auth or AuthManager.from_environment()
+
+    async def require_session(request: Request) -> None:
+        app.state.auth.require_session(request.cookies.get(SESSION_COOKIE))
 
     @app.exception_handler(BackendError)
     async def backend_error_handler(_: Request, exc: BackendError) -> JSONResponse:
@@ -38,8 +70,12 @@ def create_app(service: TaskService | None = None) -> FastAPI:
         )
 
     @app.exception_handler(RequestValidationError)
-    async def validation_error_handler(_: Request, __: RequestValidationError) -> JSONResponse:
-        error = input_error("请求字段缺失或格式无效。")
+    async def validation_error_handler(request: Request, __: RequestValidationError) -> JSONResponse:
+        error = (
+            auth_error("AUTH-002", "访问密码格式无效。", 422)
+            if request.url.path == "/api/auth/login"
+            else input_error("请求字段缺失或格式无效。")
+        )
         return JSONResponse(
             content=error.as_payload(),
             status_code=422,
@@ -58,16 +94,44 @@ def create_app(service: TaskService | None = None) -> FastAPI:
     async def healthz() -> dict[str, str]:
         return {"status": "ok"}
 
-    @app.post("/api/analyze")
+    @app.post("/api/auth/login")
+    async def login(credentials: LoginRequest, response: Response) -> dict[str, int | str]:
+        token = app.state.auth.authenticate(credentials.password)
+        response.set_cookie(
+            SESSION_COOKIE,
+            token,
+            max_age=app.state.auth.session_seconds,
+            httponly=True,
+            secure=True,
+            samesite="strict",
+            path="/",
+        )
+        return {"status": "success", "expiresIn": app.state.auth.session_seconds}
+
+    @app.get("/api/auth/session", dependencies=[Depends(require_session)])
+    async def session() -> dict[str, str]:
+        return {"status": "success"}
+
+    @app.post("/api/auth/logout")
+    async def logout(response: Response) -> dict[str, str]:
+        response.delete_cookie(
+            SESSION_COOKIE,
+            httponly=True,
+            secure=True,
+            samesite="strict",
+            path="/",
+        )
+        return {"status": "success"}
+
+    @app.post("/api/analyze", dependencies=[Depends(require_session)])
     async def analyze(file: Annotated[UploadFile, File(...)]) -> dict:
         try:
             return await asyncio.wait_for(app.state.service.analyze(file), timeout=180)
         except TimeoutError as exc:
             raise system_error("SYSTEM-001", "任务超过 180 秒限制。", 504) from exc
 
-    @app.post("/api/process")
+    @app.post("/api/process", dependencies=[Depends(require_session)])
     async def process(
-        background_tasks: BackgroundTasks,
         file: Annotated[UploadFile, File(...)],
         sheet_index: Annotated[int, Form(...)],
         title_row: Annotated[int, Form(...)],
@@ -78,25 +142,46 @@ def create_app(service: TaskService | None = None) -> FastAPI:
         fill_name: Annotated[bool, Form()] = False,
         fill_ideal_buy: Annotated[bool, Form()] = False,
         fill_ideal_sell: Annotated[bool, Form()] = False,
-    ) -> FileResponse:
+    ) -> JSONResponse:
         if min(sheet_index, title_row, data_start_row) < 0:
             raise input_error("表格坐标必须是非负整数。")
-        try:
-            parsed_codes = parse_codes(codes)
-        except BackendError:
-            raise
+        parsed_codes = parse_codes(codes)
         request = ProcessInput(
             sheet_index, title_row, data_start_row, start_date, end_date,
             parsed_codes, fill_name, fill_ideal_buy, fill_ideal_sell,
         )
-        try:
-            output_path, filename, task_dir = await asyncio.wait_for(
-                app.state.service.process(file, request), timeout=180
-            )
-        except TimeoutError as exc:
-            raise system_error("SYSTEM-001", "任务超过 180 秒限制。", 504) from exc
-        background_tasks.add_task(TaskWorkspace.remove, task_dir)
-        media_type = "application/vnd.ms-excel" if filename.endswith(".xls") else "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        task_id = await app.state.service.start_process(file, request)
+        return JSONResponse(
+            {
+                "status": "accepted",
+                "taskId": task_id,
+                "eventsUrl": f"/api/tasks/{task_id}/events",
+            },
+            status_code=202,
+        )
+
+    @app.get("/api/tasks/{task_id}/events", dependencies=[Depends(require_session)])
+    async def task_events(task_id: str) -> StreamingResponse:
+        app.state.service.require_task(task_id)
+        return StreamingResponse(
+            app.state.service.stream_events(task_id),
+            media_type="text/event-stream",
+            headers={
+                "Cache-Control": "no-store",
+                "Pragma": "no-cache",
+                "X-Accel-Buffering": "no",
+            },
+        )
+
+    @app.get("/api/tasks/{task_id}/download", dependencies=[Depends(require_session)])
+    async def download(task_id: str, background_tasks: BackgroundTasks) -> FileResponse:
+        output_path, filename, _ = app.state.service.claim_download(task_id)
+        background_tasks.add_task(app.state.service.finish_download, task_id)
+        media_type = (
+            "application/vnd.ms-excel"
+            if filename.endswith(".xls")
+            else "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        )
         return FileResponse(
             output_path,
             media_type=media_type,

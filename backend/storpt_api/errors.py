@@ -35,6 +35,28 @@ def file_error(code: str, message: str, status_code: int = 400) -> BackendError:
     return BackendError(code, "FILE", "upload", title, message, status_code)
 
 
+def auth_error(
+    code: str,
+    message: str,
+    status_code: int = 401,
+    details: dict[str, Any] | None = None,
+) -> BackendError:
+    titles = {
+        "AUTH-001": "登录会话无效",
+        "AUTH-002": "访问密码错误",
+        "AUTH-003": "登录已暂时锁定",
+    }
+    return BackendError(
+        code,
+        "AUTH",
+        "authentication",
+        titles.get(code, "认证失败"),
+        message,
+        status_code,
+        details,
+    )
+
+
 def input_error(message: str) -> BackendError:
     return BackendError("INPUT-001", "INPUT", "input", "股票代码输入无效", message)
 
@@ -44,6 +66,12 @@ def output_error(message: str) -> BackendError:
 
 
 def system_error(code: str, message: str, status_code: int = 503) -> BackendError:
-    title = "任务超时" if code == "SYSTEM-001" else "任务正在运行"
+    titles = {
+        "SYSTEM-001": "任务超时",
+        "SYSTEM-002": "任务正在运行",
+        "SYSTEM-003": "认证尚未配置",
+        "SYSTEM-004": "任务处理失败",
+        "SYSTEM-005": "任务不可用",
+    }
+    title = titles.get(code, "系统错误")
     return BackendError(code, "SYSTEM", "system", title, message, status_code)
-
