@@ -7,11 +7,15 @@ on:
       - ".github/workflows/backend-validation.yml"
       - "backend/**"
       - "contracts/**"
+      - "excel-worker/**"
+      - "platform.xlsx"
   pull_request:
     paths:
       - ".github/workflows/backend-validation.yml"
       - "backend/**"
       - "contracts/**"
+      - "excel-worker/**"
+      - "platform.xlsx"
 
 permissions:
   contents: read
