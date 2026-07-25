@@ -4,8 +4,9 @@
   "title": "StoRpt Excel Worker request",
   "type": "object",
   "additionalProperties": false,
-  "required": ["inputPath", "outputPath", "format", "sheetIndex", "latestPeriod", "changes"],
+  "required": ["operation", "inputPath", "format"],
   "properties": {
+    "operation": { "type": "string", "enum": ["analyze", "write"] },
     "inputPath": { "type": "string", "minLength": 1 },
     "outputPath": { "type": "string", "minLength": 1 },
     "format": { "type": "string", "enum": ["xls", "xlsx"] },
@@ -46,5 +47,24 @@
         "fillIdealSell": { "type": "boolean" }
       }
     }
-  }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "operation": { "const": "analyze" } } },
+      "then": {
+        "not": {
+          "anyOf": [
+            { "required": ["outputPath"] },
+            { "required": ["sheetIndex"] },
+            { "required": ["latestPeriod"] },
+            { "required": ["changes"] }
+          ]
+        }
+      }
+    },
+    {
+      "if": { "properties": { "operation": { "const": "write" } } },
+      "then": { "required": ["outputPath", "sheetIndex", "latestPeriod", "changes"] }
+    }
+  ]
 }

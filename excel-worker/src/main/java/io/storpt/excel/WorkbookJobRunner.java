@@ -39,6 +39,15 @@ public final class WorkbookJobRunner {
     this.verifier = verifier;
   }
 
+  public TemplateMetadata analyze(Path inputPath, String format)
+      throws IOException, TemplateAnalysisException, WorkbookWriteException {
+    validateInput(inputPath, format);
+    try (Workbook workbook = WorkbookFactory.create(inputPath.toFile())) {
+      validateWorkbookFormat(workbook, format);
+      return analyzer.analyze(workbook);
+    }
+  }
+
   public TemplateMetadata run(WorkbookJob job)
       throws IOException, TemplateAnalysisException, WorkbookWriteException {
     validateFiles(job);
@@ -85,26 +94,37 @@ public final class WorkbookJobRunner {
         || job.writeRequest() == null) {
       throw error("INPUT-001", "Worker 请求缺少必要字段。");
     }
+    validateInput(job.inputPath(), job.format());
     Path input = job.inputPath().toAbsolutePath().normalize();
     Path output = job.outputPath().toAbsolutePath().normalize();
-    if (!Files.isRegularFile(input)) {
-      throw error("FILE-001", "输入文件不存在或不是普通文件。");
-    }
-    if (Files.size(input) > MAX_FILE_SIZE) {
-      throw error("FILE-002", "输入文件超过 10 MB 限制。");
-    }
     if (input.equals(output) || Files.exists(output)) {
       throw error("OUTPUT-001", "输出路径不得覆盖输入文件或已有文件。");
     }
     if (output.getParent() == null || !Files.isDirectory(output.getParent())) {
       throw error("OUTPUT-001", "输出目录不存在。");
     }
-    String format = job.format() == null ? "" : job.format().toLowerCase(Locale.ROOT);
-    if (!format.equals(job.format())
-        || !(format.equals("xls") || format.equals("xlsx"))
-        || !extension(input).equals(format)
-        || !extension(output).equals(format)) {
+    if (!extension(output).equals(job.format())) {
       throw error("FILE-001", "输入、输出扩展名和 format 必须一致，且只能是 xls 或 xlsx。");
+    }
+  }
+
+  private static void validateInput(Path inputPath, String declaredFormat)
+      throws IOException, WorkbookWriteException {
+    if (inputPath == null) {
+      throw error("INPUT-001", "Worker 请求缺少输入路径。");
+    }
+    Path input = inputPath.toAbsolutePath().normalize();
+    if (!Files.isRegularFile(input)) {
+      throw error("FILE-001", "输入文件不存在或不是普通文件。");
+    }
+    if (Files.size(input) > MAX_FILE_SIZE) {
+      throw error("FILE-002", "输入文件超过 10 MB 限制。");
+    }
+    String format = declaredFormat == null ? "" : declaredFormat.toLowerCase(Locale.ROOT);
+    if (!format.equals(declaredFormat)
+        || !(format.equals("xls") || format.equals("xlsx"))
+        || !extension(input).equals(format)) {
+      throw error("FILE-001", "输入扩展名和 format 必须一致，且只能是 xls 或 xlsx。");
     }
   }
 

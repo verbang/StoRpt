@@ -58,6 +58,23 @@ class WorkerCliTest {
   }
 
   @Test
+  void analyzesWithoutCreatingAnOutputFile() throws Exception {
+    ObjectNode request = MAPPER.createObjectNode();
+    request.put("operation", "analyze");
+    request.put("inputPath", template().toString());
+    request.put("format", "xlsx");
+
+    CliResult result = runCli(request);
+
+    assertEquals(0, result.exitCode());
+    assertEquals("analyze", result.response().path("operation").asText());
+    assertFalse(result.response().has("outputPath"));
+    assertEquals("Sheet1", result.response().path("metadata").path("sheetName").asText());
+    assertEquals(27, result.response().path("metadata").path("latestPeriod")
+        .path("titleRow").asInt());
+  }
+
+  @Test
   void preservesXlsContainerFormat() throws Exception {
     Path input = temporaryDirectory.resolve("input.xls");
     Path output = temporaryDirectory.resolve("result.xls");
@@ -138,6 +155,7 @@ class WorkerCliTest {
       int titleRow,
       int dataStartRow) {
     ObjectNode root = MAPPER.createObjectNode();
+    root.put("operation", "write");
     root.put("inputPath", input.toString());
     root.put("outputPath", output.toString());
     root.put("format", format);

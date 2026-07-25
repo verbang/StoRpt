@@ -39,9 +39,12 @@ public final class WorkerCli {
     ObjectNode response;
     int exitCode;
     try {
-      WorkbookJob job = parse(mapper.readTree(input));
-      TemplateMetadata metadata = runner.run(job);
-      response = success(job.outputPath(), metadata);
+      Command command = parse(mapper.readTree(input));
+      TemplateMetadata metadata = command.operation().equals("analyze")
+          ? runner.analyze(command.inputPath(), command.format())
+          : runner.run(command.writeJob());
+      Path outputPath = command.writeJob() == null ? null : command.writeJob().outputPath();
+      response = success(command.operation(), outputPath, metadata);
       exitCode = 0;
     } catch (TemplateAnalysisException | WorkbookWriteException exception) {
       response = failure(exception instanceof TemplateAnalysisException analysis
@@ -67,13 +70,20 @@ public final class WorkerCli {
     return exitCode;
   }
 
-  private WorkbookJob parse(JsonNode root) throws WorkbookWriteException {
+  private Command parse(JsonNode root) throws WorkbookWriteException {
     if (root == null || !root.isObject()) {
       throw error("INPUT-001", "Worker 请求必须是 JSON 对象。");
     }
+    String operation = requiredText(root, "operation");
     String inputPath = requiredText(root, "inputPath");
-    String outputPath = requiredText(root, "outputPath");
     String format = requiredText(root, "format");
+    if (operation.equals("analyze")) {
+      return new Command(operation, Path.of(inputPath), format, null);
+    }
+    if (!operation.equals("write")) {
+      throw error("INPUT-001", "operation 只能是 analyze 或 write。");
+    }
+    String outputPath = requiredText(root, "outputPath");
     int sheetIndex = requiredInteger(root, "sheetIndex");
     JsonNode latest = requiredObject(root, "latestPeriod");
     int titleRow = requiredInteger(latest, "titleRow");
@@ -102,13 +112,17 @@ public final class WorkerCli {
     WorkbookWriteRequest writeRequest = new WorkbookWriteRequest(
         sheetIndex, titleRow, dataStartRow, startDate, endDate, rows,
         fillName, fillIdealBuy, fillIdealSell);
-    return new WorkbookJob(Path.of(inputPath), Path.of(outputPath), format, writeRequest);
+    WorkbookJob job = new WorkbookJob(Path.of(inputPath), Path.of(outputPath), format, writeRequest);
+    return new Command(operation, job.inputPath(), format, job);
   }
 
-  private ObjectNode success(Path outputPath, TemplateMetadata metadata) {
+  private ObjectNode success(String operation, Path outputPath, TemplateMetadata metadata) {
     ObjectNode root = mapper.createObjectNode();
     root.put("status", "success");
-    root.put("outputPath", outputPath.toString());
+    root.put("operation", operation);
+    if (outputPath != null) {
+      root.put("outputPath", outputPath.toString());
+    }
     root.set("metadata", metadata(metadata));
     return root;
   }
@@ -224,6 +238,9 @@ public final class WorkerCli {
   private static WorkbookWriteException error(String code, String message) {
     return new WorkbookWriteException(code, message);
   }
+
+  private record Command(
+      String operation, Path inputPath, String format, WorkbookJob writeJob) {}
 
   private record ErrorDefinition(String category, String stage, String title) {
     private static ErrorDefinition forCode(String code) {

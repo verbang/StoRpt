@@ -7,6 +7,7 @@
   "required": ["status"],
   "properties": {
     "status": { "type": "string", "enum": ["success", "error"] },
+    "operation": { "type": "string", "enum": ["analyze", "write"] },
     "outputPath": { "type": "string", "minLength": 1 },
     "metadata": {
       "type": "object",
@@ -27,7 +28,27 @@
   "allOf": [
     {
       "if": { "properties": { "status": { "const": "success" } } },
-      "then": { "required": ["outputPath", "metadata"] }
+      "then": { "required": ["operation", "metadata"] }
+    },
+    {
+      "if": {
+        "properties": {
+          "status": { "const": "success" },
+          "operation": { "const": "analyze" }
+        },
+        "required": ["status", "operation"]
+      },
+      "then": { "not": { "required": ["outputPath"] } }
+    },
+    {
+      "if": {
+        "properties": {
+          "status": { "const": "success" },
+          "operation": { "const": "write" }
+        },
+        "required": ["status", "operation"]
+      },
+      "then": { "required": ["outputPath"] }
     },
     {
       "if": { "properties": { "status": { "const": "error" } } },
