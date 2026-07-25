@@ -14,3 +14,9 @@ Thumbs.db
 *.probe-output.xls
 *.probe-output.xlsx
 
+# Python and backend runtime
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+.storpt-tasks/

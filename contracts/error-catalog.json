@@ -11,6 +11,7 @@
     { "code": "MARKET-001", "category": "MARKET", "stage": "market", "title": "股票清单校验失败", "message": "股票代码不是当前上市沪深京 A 股。" },
     { "code": "MARKET-002", "category": "MARKET", "stage": "market", "title": "指定日期无行情", "message": "指定日期没有所需的不复权行情。" },
     { "code": "OUTPUT-001", "category": "OUTPUT", "stage": "output", "title": "工作簿写入失败", "message": "允许写入或输出文件自检失败。" },
-    { "code": "SYSTEM-001", "category": "SYSTEM", "stage": "system", "title": "任务超时", "message": "任务超过 180 秒限制。" }
+    { "code": "SYSTEM-001", "category": "SYSTEM", "stage": "system", "title": "任务超时", "message": "任务超过 180 秒限制。" },
+    { "code": "SYSTEM-002", "category": "SYSTEM", "stage": "system", "title": "任务正在运行", "message": "同一账号同时只允许一个任务。" }
   ]
 }
