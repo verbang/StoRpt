@@ -43,8 +43,9 @@ class TaskService:
 
     async def analyze(self, upload: UploadFile) -> dict[str, Any]:
         self._start()
-        task_dir = self.workspace.create()
+        task_dir: Path | None = None
         try:
+            task_dir = self.workspace.create()
             suffix = Path(upload.filename or "").suffix.lower()
             input_path, file_format, size = await save_upload(upload, task_dir / f"input{suffix}")
             result = await asyncio.to_thread(self.worker.analyze, input_path, file_format)
@@ -55,14 +56,16 @@ class TaskService:
                 "metadata": result.metadata,
             }
         finally:
-            self.workspace.remove(task_dir)
+            if task_dir is not None:
+                self.workspace.remove(task_dir)
             self._finish()
 
     async def process(self, upload: UploadFile, request: ProcessInput) -> tuple[Path, str, Path]:
         self._start()
-        task_dir = self.workspace.create()
+        task_dir: Path | None = None
         published = False
         try:
+            task_dir = self.workspace.create()
             suffix = Path(upload.filename or "").suffix.lower()
             input_path, file_format, _ = await save_upload(upload, task_dir / f"input{suffix}")
             start_date = _parse_date(request.start_date, "开始日期")
@@ -103,6 +106,6 @@ class TaskService:
             published = True
             return result.output_path, filename, task_dir
         finally:
-            if not published:
+            if not published and task_dir is not None:
                 self.workspace.remove(task_dir)
             self._finish()

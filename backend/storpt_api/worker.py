@@ -58,7 +58,10 @@ class WorkerClient:
             "inputPath": str(input_path),
             "format": file_format,
         })
-        return WorkerResult("analyze", response["metadata"])
+        metadata = response.get("metadata")
+        if not isinstance(metadata, dict):
+            raise output_error("Java Worker 分析响应缺少 metadata。")
+        return WorkerResult("analyze", metadata)
 
     def write(
         self,
@@ -91,5 +94,11 @@ class WorkerClient:
                 "fillIdealSell": fill_ideal_sell,
             },
         })
-        return WorkerResult("write", response["metadata"], Path(response["outputPath"]))
-
+        metadata = response.get("metadata")
+        returned_path = response.get("outputPath")
+        if not isinstance(metadata, dict) or not isinstance(returned_path, str):
+            raise output_error("Java Worker 写入响应缺少必要字段。")
+        verified_path = Path(returned_path).resolve()
+        if verified_path != output_path.resolve():
+            raise output_error("Java Worker 返回了未授权的输出路径。")
+        return WorkerResult("write", metadata, verified_path)

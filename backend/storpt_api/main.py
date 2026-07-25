@@ -31,12 +31,20 @@ def create_app(service: TaskService | None = None) -> FastAPI:
 
     @app.exception_handler(BackendError)
     async def backend_error_handler(_: Request, exc: BackendError) -> JSONResponse:
-        return JSONResponse(exc.status_code, exc.as_payload(), headers={"Cache-Control": "no-store"})
+        return JSONResponse(
+            content=exc.as_payload(),
+            status_code=exc.status_code,
+            headers={"Cache-Control": "no-store"},
+        )
 
     @app.exception_handler(RequestValidationError)
     async def validation_error_handler(_: Request, __: RequestValidationError) -> JSONResponse:
         error = input_error("请求字段缺失或格式无效。")
-        return JSONResponse(422, error.as_payload(), headers={"Cache-Control": "no-store"})
+        return JSONResponse(
+            content=error.as_payload(),
+            status_code=422,
+            headers={"Cache-Control": "no-store"},
+        )
 
     @app.middleware("http")
     async def disable_sensitive_caching(request: Request, call_next):
