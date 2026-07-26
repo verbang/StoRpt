@@ -320,8 +320,11 @@ def test_second_task_is_rejected_while_one_is_running(tmp_path: Path):
             raised = exc
         # Release the first task so it can complete and clean up.
         market.gate.set()
-        # Let the background coroutine finish to avoid leaking tasks.
-        await asyncio.sleep(0.1)
+        # Await the background runner to completion so asyncio.run can close the
+        # loop without a pending task (which would otherwise hang teardown).
+        first_task = service._tasks[first_id]
+        if first_task.runner is not None:
+            await first_task.runner
         return raised
 
     raised = asyncio.run(scenario())
@@ -355,13 +358,16 @@ def test_task_timeout_reports_system_001(tmp_path: Path, monkeypatch):
 
     monkeypatch.setattr(asyncio, "wait_for", fast_wait_for)
 
-    market = SlowMarket(seconds=5)
+    market = SlowMarket(seconds=2)
     service = TaskService(TaskWorkspace(tmp_path / "tasks"), StubWorker(), market)
 
     async def scenario():
         task_id = await _start_process_raw(service, tmp_path)
-        # Let the (fast) timeout fire and the failure event be recorded.
-        await asyncio.sleep(1.0)
+        # Await the background runner to terminal state so asyncio.run can close
+        # the loop with no pending task (avoids teardown hang).
+        runner = service._tasks[task_id].runner
+        if runner is not None:
+            await runner
         return task_id
 
     task_id = asyncio.run(scenario())
