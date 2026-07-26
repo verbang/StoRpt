@@ -33,12 +33,13 @@ jobs:
 
       - name: Compile requirements.lock
         working-directory: backend
-        # Pin to the Python 3.12 resolver used by the runtime image. Emit hashes
-        # for supply-chain integrity; keep markers compatible with linux.
+        # Pin every transitive dependency to an exact version for the Python
+        # 3.12 / linux resolver used by the runtime image. Hashes are omitted:
+        # some akshare transitive deps ship sdist-only without published hashes,
+        # which makes --generate-hashes fail the whole resolution. Version
+        # pinning alone is enough for reproducible image builds.
         run: |
-          pip-compile --quiet \
-            --generate-hashes \
-            --resolver-version backtracking \
+          pip-compile \
             --output-file requirements.lock \
             pyproject.toml
 

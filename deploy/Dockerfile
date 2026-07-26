@@ -16,7 +16,7 @@ COPY frontend/ ./
 RUN npm run build
 
 # ---------- Stage B: Excel Worker JAR ----------------------------------------
-FROM maven:3.9-eclipse-temurin-21-noble AS worker-builder
+FROM maven:3.9-eclipse-temurin-21 AS worker-builder
 WORKDIR /build
 COPY excel-worker/pom.xml ./
 # Pre-fetch dependencies for layer caching; pom.xml changes rarely.
