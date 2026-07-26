@@ -13,6 +13,7 @@ import org.apache.poi.ss.usermodel.Workbook;
 import org.apache.poi.xssf.usermodel.XSSFChart;
 import org.apache.poi.xssf.usermodel.XSSFDrawing;
 import org.apache.poi.xssf.usermodel.XSSFObjectData;
+import org.apache.poi.xssf.usermodel.XSSFPicture;
 import org.apache.poi.xssf.usermodel.XSSFPivotTable;
 import org.apache.poi.xssf.usermodel.XSSFShape;
 import org.apache.poi.xssf.usermodel.XSSFSheet;
@@ -98,11 +99,17 @@ final class UnsupportedFeatureDetector {
       for (XSSFChart chart : drawing.getCharts()) {
         throw error("工作表 " + sheet.getSheetName() + " 包含图表。");
       }
+      // Pictures must be checked before the generic shape branch: XSSFPicture
+      // is itself an XSSFShape, so order matters for the reported feature name.
       for (XSSFShape shape : drawing.getShapes()) {
         if (shape instanceof XSSFObjectData) {
           throw error("工作表 " + sheet.getSheetName() + " 包含嵌入对象。");
         }
-        // Any remaining non-picture shape (text box, connector, autoshape, group).
+        if (shape instanceof XSSFPicture) {
+          throw error("工作表 " + sheet.getSheetName() + " 包含图片。");
+        }
+        // Any remaining shape (text box, connector, autoshape, group) that is
+        // neither a chart (handled above) nor a picture nor an embedded object.
         throw error("工作表 " + sheet.getSheetName() + " 包含形状或文本框。");
       }
     }
