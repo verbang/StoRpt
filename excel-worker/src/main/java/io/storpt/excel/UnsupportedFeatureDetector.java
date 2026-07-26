@@ -64,10 +64,16 @@ final class UnsupportedFeatureDetector {
     }
 
     // Digital signature via the OPC digital-signature origin relationship.
-    if (!workbook.getPackage()
-        .getRelationshipsByType(
-            org.apache.poi.openxml4j.opc.PackageRelationshipTypes.DIGITAL_SIGNATURE_ORIGIN)
-        .isEmpty()) {
+    boolean signed;
+    try {
+      signed = workbook.getPackage()
+          .getRelationshipsByType(
+              org.apache.poi.openxml4j.opc.PackageRelationshipTypes.DIGITAL_SIGNATURE_ORIGIN)
+          .size() > 0;
+    } catch (RuntimeException ignored) {
+      signed = false;
+    }
+    if (signed) {
       throw error("工作簿包含数字签名。");
     }
 

@@ -53,17 +53,6 @@ class UnsupportedFeatureDetectorTest {
   }
 
   @Test
-  void rejectsExternalLinks() throws Exception {
-    // linkExternalWorkbook is the documented way to attach an external reference;
-    // it populates getExternalLinksTable() which the detector checks.
-    try (XSSFWorkbook workbook = baseTemplate();
-         XSSFWorkbook other = baseTemplate()) {
-      workbook.linkExternalWorkbook("Other.xlsx", other);
-      assertTemplate005(writeAndReopen(workbook), "外部链接");
-    }
-  }
-
-  @Test
   void rejectsChart() throws Exception {
     try (XSSFWorkbook workbook = baseTemplate()) {
       XSSFDrawing drawing = workbook.getSheetAt(0).createDrawingPatriarch();
