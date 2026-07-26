@@ -10,6 +10,9 @@ excel-worker/target/
 .DS_Store
 Thumbs.db
 
+# Office temporary lock files (created when Excel/WPS has a file open)
+~$*
+
 # Temporary workbook output
 *.probe-output.xls
 *.probe-output.xlsx

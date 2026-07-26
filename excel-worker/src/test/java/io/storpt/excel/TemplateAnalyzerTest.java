@@ -23,9 +23,7 @@ class TemplateAnalyzerTest {
 
   @Test
   void analyzesPlatformTemplate() throws Exception {
-    Path template = Path.of(System.getProperty("storpt.template", "../platform.xlsx"))
-        .toAbsolutePath()
-        .normalize();
+    Path template = resolveSample("platform.xlsx");
     assertTrue(Files.isRegularFile(template), "Missing template: " + template);
 
     try (Workbook workbook = WorkbookFactory.create(template.toFile())) {
@@ -154,6 +152,45 @@ class TemplateAnalyzerTest {
           () -> analyzer.analyze(workbook));
 
       assertEquals("TEMPLATE-002", exception.code());
+    }
+  }
+
+  /**
+   * Resolves a sample file from the repository root. Surefire runs inside
+   * excel-worker/, so the repository root is one level up unless overridden.
+   */
+  private static Path resolveSample(String name) {
+    return Path.of(System.getProperty("storpt.samples", ".."))
+        .resolve(name)
+        .toAbsolutePath()
+        .normalize();
+  }
+
+  @Test
+  void rejectsProtectedSampleWithUnsupportedFeature() throws Exception {
+    // platform-reject.xlsx carries worksheet protection; the detector must
+    // reject it with TEMPLATE-005 instead of accepting the structure.
+    Path reject = resolveSample("platform-reject.xlsx");
+    assertTrue(Files.isRegularFile(reject), "Missing reject sample: " + reject);
+
+    try (Workbook workbook = WorkbookFactory.create(reject.toFile())) {
+      TemplateAnalysisException exception = assertThrows(
+          TemplateAnalysisException.class,
+          () -> analyzer.analyze(workbook));
+      assertEquals("TEMPLATE-005", exception.code());
+    }
+  }
+
+  @Test
+  void analyzesRealXlsSample() throws Exception {
+    // platform2.xls is a real Excel/WPS-saved .xls; closing the open technical
+    // validation exit criterion "add a real .xls sample".
+    Path xls = resolveSample("platform2.xls");
+    assertTrue(Files.isRegularFile(xls), "Missing .xls sample: " + xls);
+
+    try (Workbook workbook = WorkbookFactory.create(xls.toFile())) {
+      TemplateMetadata metadata = analyzer.analyze(workbook);
+      assertTrue(metadata.periods().size() >= 1, "Expected at least one period in .xls sample");
     }
   }
 

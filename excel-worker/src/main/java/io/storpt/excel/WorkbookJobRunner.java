@@ -11,6 +11,7 @@ import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import org.apache.poi.EncryptedDocumentException;
 import org.apache.poi.hssf.usermodel.HSSFWorkbook;
 import org.apache.poi.ss.usermodel.Cell;
 import org.apache.poi.ss.usermodel.CellType;
@@ -42,7 +43,7 @@ public final class WorkbookJobRunner {
   public TemplateMetadata analyze(Path inputPath, String format)
       throws IOException, TemplateAnalysisException, WorkbookWriteException {
     validateInput(inputPath, format);
-    try (Workbook workbook = WorkbookFactory.create(inputPath.toFile())) {
+    try (Workbook workbook = openWorkbook(inputPath)) {
       validateWorkbookFormat(workbook, format);
       return analyzer.analyze(workbook);
     }
@@ -56,7 +57,7 @@ public final class WorkbookJobRunner {
     try {
       temporary = Files.createTempFile(output.getParent(), ".storpt-", "." + job.format());
       VerificationPlan plan;
-      try (Workbook workbook = WorkbookFactory.create(job.inputPath().toFile())) {
+      try (Workbook workbook = openWorkbook(job.inputPath())) {
         validateWorkbookFormat(workbook, job.format());
         TemplateMetadata metadata = analyzer.analyze(workbook);
         int newEnd = job.writeRequest().dataStartRow() + job.writeRequest().rows().size() - 1;
@@ -108,6 +109,22 @@ public final class WorkbookJobRunner {
     }
   }
 
+  /**
+   * Opens a workbook, translating encryption into the template error model.
+   * POI throws {@link EncryptedDocumentException} (a runtime exception) for any
+   * password-protected .xls/.xlsx; without this wrapper it escapes to the CLI's
+   * generic handler and surfaces as INPUT-001 instead of TEMPLATE-005.
+   */
+  private static Workbook openWorkbook(Path inputPath)
+      throws IOException, TemplateAnalysisException {
+    try {
+      return WorkbookFactory.create(inputPath.toFile());
+    } catch (EncryptedDocumentException exception) {
+      throw new TemplateAnalysisException(
+          "TEMPLATE-005", "文件已加密，需要密码打开；加密文件不被支持。");
+    }
+  }
+
   private static void validateInput(Path inputPath, String declaredFormat)
       throws IOException, WorkbookWriteException {
     if (inputPath == null) {
@@ -154,7 +171,7 @@ public final class WorkbookJobRunner {
 
   private static TemplateMetadata verifyOutput(Path output, VerificationPlan plan)
       throws IOException, TemplateAnalysisException, WorkbookWriteException {
-    try (Workbook workbook = WorkbookFactory.create(output.toFile())) {
+    try (Workbook workbook = openWorkbook(output)) {
       validateWorkbookFormat(workbook, plan.format());
       if (!plan.protectedBefore().equals(
           WorkbookSnapshot.capture(workbook, plan.protectedCells()))) {

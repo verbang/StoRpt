@@ -8,6 +8,8 @@ on:
       - "excel-worker/**"
       - "contracts/**"
       - "platform.xlsx"
+      - "platform2.xls"
+      - "platform-reject.xlsx"
       - "docs/technical-validation.md"
   pull_request:
     paths:
@@ -15,6 +17,8 @@ on:
       - "excel-worker/**"
       - "contracts/**"
       - "platform.xlsx"
+      - "platform2.xls"
+      - "platform-reject.xlsx"
       - "docs/technical-validation.md"
 
 permissions:

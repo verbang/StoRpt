@@ -39,6 +39,7 @@ public final class TemplateAnalyzer {
     if (!WorkbookCalculation.supportsRecalculation(workbook)) {
       throw error("TEMPLATE-005", "工作簿必须启用自动计算或打开时重新计算。");
     }
+    UnsupportedFeatureDetector.detect(workbook);
 
     List<SheetAnalysis> candidates = new ArrayList<>();
     for (int sheetIndex = 0; sheetIndex < workbook.getNumberOfSheets(); sheetIndex++) {
