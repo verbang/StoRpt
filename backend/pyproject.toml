@@ -11,10 +11,13 @@ dependencies = [
   "fastapi>=0.115,<1",
   "uvicorn[standard]>=0.34,<1",
   "python-multipart>=0.0.20,<1",
+  # AKShare is required by the default AkshareMarketDataProvider wired in
+  # main.create_app; the single production image must ship it. It stays out of
+  # the [test] extra so unit tests run without the heavy pandas/network stack.
+  "akshare>=1.17,<2",
 ]
 
 [project.optional-dependencies]
-market = ["akshare>=1.17,<2"]
 test = [
   "httpx>=0.28,<1",
   "pytest>=8.3,<9",

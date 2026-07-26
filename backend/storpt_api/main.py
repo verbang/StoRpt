@@ -6,9 +6,10 @@ from contextlib import asynccontextmanager, suppress
 from pathlib import Path
 from typing import Annotated
 
-from fastapi import BackgroundTasks, Depends, FastAPI, File, Form, Request, Response, UploadFile
+from fastapi import BackgroundTasks, Depends, FastAPI, File, Form, HTTPException, Request, Response, UploadFile
 from fastapi.exceptions import RequestValidationError
-from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, StreamingResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, ConfigDict
 
 from .auth import AuthManager, SESSION_COOKIE
@@ -29,6 +30,7 @@ class LoginRequest(BaseModel):
 def create_app(
     service: TaskService | None = None,
     auth: AuthManager | None = None,
+    static_dir: Path | None = None,
 ) -> FastAPI:
     if service is None:
         workspace = TaskWorkspace(Path(os.getenv("STORPT_TASK_ROOT", ".storpt-tasks")))
@@ -38,6 +40,11 @@ def create_app(
             WorkerClient(Path(os.getenv("STORPT_WORKER_JAR", "excel-worker.jar"))),
             AkshareMarketDataProvider(),
         )
+    if static_dir is None:
+        configured = os.getenv("STORPT_STATIC_DIR")
+        if configured:
+            candidate = Path(configured)
+            static_dir = candidate if candidate.is_dir() else None
 
     @asynccontextmanager
     async def lifespan(_: FastAPI):
@@ -189,6 +196,21 @@ def create_app(
             headers={"Cache-Control": "no-store", "Pragma": "no-cache"},
             background=background_tasks,
         )
+
+    if static_dir is not None:
+        index_html = static_dir / "index.html"
+        app.mount("/", StaticFiles(directory=static_dir, html=True), name="static")
+
+        # SPA fallback: refreshes on client-side routes resolve to index.html.
+        # API routes are registered above and matched before this handler, so
+        # genuine API 404s keep their structured JSON error response.
+        @app.exception_handler(404)
+        async def spa_fallback(request: Request, _exc: HTTPException) -> HTMLResponse:
+            if request.url.path.startswith("/api/"):
+                raise _exc
+            if not index_html.is_file():
+                raise _exc
+            return HTMLResponse(index_html.read_text(encoding="utf-8"))
 
     return app
 
