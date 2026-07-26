@@ -27,8 +27,17 @@ Apache POI 对兼容 `.xls` 和 `.xlsx` 工作簿的读取、保存、重开及�
 - [x] 增加一份由 Excel 或 WPS 实际保存的兼容 `.xls` 样本并通过验证（`platform2.xls`，2026-07-26）。
 - [x] 为密码、保护、签名、外链、透视表、图表、图片、形状和嵌入对象建立可获得的拒绝样本及探测结果（2026-07-26）。VBA 宏和静态数据连接按 [ADR-0013](adr/0013-strict-excel-compatibility.md) 修订予以容忍，不再纳入拒绝探测。
 - [ ] 验证新增 A:D 单元格的样式复制不改变 E:S 或整行属性。
-- [ ] 验证代码缩减时只清除 A 列尾部旧代码，未勾选 B:D 保持原坐标值。
+- [x] 验证代码缩减时只清除 A 列尾部旧代码，未勾选 B:D 保持原坐标值（`WorkbookWriterTest.shorterCodeListClearsOldCodeTailAndPreservesOptionalColumns`，2026-07-26）。
 - [ ] 记录 Apache POI 对 `.xls` 与 `.xlsx` 的已知差异和最终 Go/No-Go 结论。
+
+## 发布测试矩阵覆盖（2026-07-26）
+
+AC 第 7 节的自动化矩阵已落地，逐项映射见 [`acceptance-criteria.md`](acceptance-criteria.md) 第 7.1 节。覆盖：
+
+- 单元格级（Java Worker）：8 种复选框组合、代码缩减、动态扩展、结构化差异自检。
+- 编排级（后端）：行情失败原子性（MARKET-002）、非 A 股代码（MARKET-001）、并发拒绝（SYSTEM-002）、180 秒超时（SYSTEM-001）、输出格式保持。
+
+未纳入自动化的两项（属部署联调阶段）：跨浏览器关键流程（iOS Safari/Android/HarmonyOS）、真实 AKShare 实时冒烟。
 
 ## 已知限制
 

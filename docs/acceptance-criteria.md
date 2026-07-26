@@ -83,3 +83,22 @@
 - 周末、休市、停牌、无效代码、重复代码、退市或非 A 股、行情网络失败和 180 秒超时。
 - Windows/macOS/Linux 的主流 Chromium 浏览器，以及 iOS Safari、Android/HarmonyOS 主流浏览器的关键流程。
 - 保存前后工作簿结构化差异检查，重点确认 E:S、历史区块和非目标工作表没有越界变化。
+
+### 7.1 测试映射（自动化覆盖）
+
+下表把矩阵项映射到具体的自动化测试，发布前核对每项都有对应用例通过。跨浏览器（第 4 项）与真实 AKShare 冒烟留到部署联调阶段，不在自动化矩阵内。
+
+| 矩阵项 | 覆盖测试 | 层 |
+| --- | --- | --- |
+| 正常样本（`.xls`/`.xlsx`） | `TemplateAnalyzerTest.analyzesRealXlsSample`、`WorkbookWriterTest.writesDynamicRowsAndPreservesProtectedContentAfterRoundTrip` | Java Worker |
+| 动态扩展样本 | `WorkbookWriterTest.writesDynamicRowsAndPreservesProtectedContentAfterRoundTrip`（行数 6→8，行 35/36 新增） | Java Worker |
+| 代码缩减样本 | `WorkbookWriterTest.shorterCodeListClearsOldCodeTailAndPreservesOptionalColumns` | Java Worker |
+| 不兼容功能样本 | `TemplateAnalyzerTest.rejectsProtectedSampleWithUnsupportedFeature`、`UnsupportedFeatureDetectorTest.*` | Java Worker |
+| 三个复选框的 8 种组合 | `WorkbookWriterTest.eachCheckboxCombinationWritesOnlySelectedColumns`（参数化 8 组） | Java Worker |
+| 无效代码 / 重复代码 | `test_api.test_rejects_extension_and_duplicate_codes`（INPUT-001） | 后端 |
+| 非 A 股代码（MARKET-001） | `test_api.test_non_listed_code_fails_end_to_end` | 后端 |
+| 行情网络失败 / 无行情 | `test_api.test_market_failure_is_atomic_and_cleans_task_dir`（MARKET-002，原子性） | 后端 |
+| 180 秒超时 | `test_api.test_task_timeout_reports_system_001`（SYSTEM-001） | 后端 |
+| 同账号并发拒绝 | `test_api.test_second_task_is_rejected_while_one_is_running`（SYSTEM-002） | 后端 |
+| 输出格式保持 | `test_api.test_output_filename_preserves_input_format`、`WorkbookFidelityTest.xlsxRoundTripPreservesFullSemanticSnapshot` | 后端 + Java |
+| 结构化差异（E:S/历史区块不变） | `WorkbookFidelityTest.xlsxAllowlistedWritePreservesProtectedContent`、`WorkbookJobRunner` 自检 | Java Worker |

@@ -20,6 +20,8 @@ import org.apache.poi.ss.usermodel.Workbook;
 import org.apache.poi.ss.usermodel.WorkbookFactory;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 
 class WorkbookWriterTest {
   private final TemplateAnalyzer analyzer = new TemplateAnalyzer();
@@ -155,6 +157,113 @@ class WorkbookWriterTest {
           () -> writer.write(workbook, request));
 
       assertEquals("INPUT-001", exception.code());
+    }
+  }
+
+  /**
+   * AC-032 + matrix item 2: every one of the eight checkbox combinations must
+   * write only the selected columns and leave every unselected B:C:D cell at its
+   * original value, cell by cell. Selected columns get the stock value; others
+   * keep whatever the template held.
+   */
+  @ParameterizedTest
+  @CsvSource({
+      "false, false, false",
+      "false, false, true",
+      "false, true, false",
+      "false, true, true",
+      "true, false, false",
+      "true, false, true",
+      "true, true, false",
+      "true, true, true",
+  })
+  void eachCheckboxCombinationWritesOnlySelectedColumns(
+      boolean fillName, boolean fillIdealBuy, boolean fillIdealSell) throws Exception {
+    try (Workbook workbook = openTemplate()) {
+      TemplateMetadata metadata = analyzer.analyze(workbook);
+      Sheet sheet = workbook.getSheetAt(metadata.sheetIndex());
+      int firstRow = metadata.latestPeriod().dataStartRow();
+      int lastRow = metadata.latestPeriod().dataEndRow();
+
+      // Snapshot B:C:D before writing, so we can assert the unselected columns
+      // keep their exact cell-level state (AC-032).
+      List<String> optionalBefore = optionalColumnStates(sheet, firstRow, lastRow);
+
+      List<WorkbookWriteRequest.StockValues> rows = stockRows(lastRow - firstRow + 1);
+      writer.write(workbook, request(rows, fillName, fillIdealBuy, fillIdealSell));
+
+      // Selected columns carry the written value.
+      for (int index = 0; index < rows.size(); index++) {
+        int rowIndex = firstRow + index;
+        WorkbookWriteRequest.StockValues values = rows.get(index);
+        assertEquals(values.code(), sheet.getRow(rowIndex).getCell(0).getStringCellValue());
+        if (fillName) {
+          assertEquals(values.name(), sheet.getRow(rowIndex).getCell(1).getStringCellValue());
+        }
+        if (fillIdealBuy) {
+          assertEquals(values.idealBuy().doubleValue(),
+              sheet.getRow(rowIndex).getCell(2).getNumericCellValue(), 1e-9);
+        }
+        if (fillIdealSell) {
+          assertEquals(values.idealSell().doubleValue(),
+              sheet.getRow(rowIndex).getCell(3).getNumericCellValue(), 1e-9);
+        }
+      }
+      // Every B:C:D cell — selected or not — matches its pre-write snapshot for the
+      // unselected columns. (Selected columns were overwritten, so we only assert
+      // equality when a column is unselected; that is what AC-032 requires.)
+      assertUnselectedColumnsUnchanged(
+          sheet, firstRow, lastRow, optionalBefore, fillName, fillIdealBuy, fillIdealSell);
+    }
+  }
+
+  /**
+   * AC-031 + matrix item 1 (code reduction): when the new code list is shorter
+   * than the existing data, the A column is rewritten with the new codes and the
+   * tail (rows beyond the new list) is cleared to blank, while B:C:D everywhere
+   * keep their original cell values.
+   */
+  @Test
+  void shorterCodeListClearsOldCodeTailAndPreservesOptionalColumns() throws Exception {
+    try (Workbook workbook = openTemplate()) {
+      TemplateMetadata metadata = analyzer.analyze(workbook);
+      Sheet sheet = workbook.getSheetAt(metadata.sheetIndex());
+      int firstRow = metadata.latestPeriod().dataStartRow();
+      int lastRow = metadata.latestPeriod().dataEndRow();
+      List<String> optionalBefore = optionalColumnStates(sheet, firstRow, lastRow);
+
+      // Submit fewer codes than the existing rows (template has 6 data rows).
+      List<WorkbookWriteRequest.StockValues> rows = stockRows(2);
+      writer.write(workbook, request(rows, false, false, false));
+
+      // New codes occupy the first two rows.
+      assertEquals("000001", sheet.getRow(firstRow).getCell(0).getStringCellValue());
+      assertEquals("000002", sheet.getRow(firstRow + 1).getCell(0).getStringCellValue());
+      // Tail A cells beyond the new list are blanked (AC-031).
+      for (int rowIndex = firstRow + rows.size(); rowIndex <= lastRow; rowIndex++) {
+        assertEquals(CellType.BLANK, sheet.getRow(rowIndex).getCell(0).getCellType());
+      }
+      // B:C:D untouched anywhere (AC-032 for the all-unchecked case).
+      assertEquals(optionalBefore, optionalColumnStates(sheet, firstRow, lastRow));
+    }
+  }
+
+  private static void assertUnselectedColumnsUnchanged(
+      Sheet sheet, int firstRow, int lastRow, List<String> before,
+      boolean fillName, boolean fillIdealBuy, boolean fillIdealSell) {
+    int index = 0;
+    for (int rowIndex = firstRow; rowIndex <= lastRow; rowIndex++) {
+      Row row = sheet.getRow(rowIndex);
+      for (int column = 1; column <= 3; column++) {
+        boolean selected =
+            (column == 1 && fillName)
+                || (column == 2 && fillIdealBuy)
+                || (column == 3 && fillIdealSell);
+        if (!selected) {
+          assertEquals(before.get(index), cellState(row == null ? null : row.getCell(column)));
+        }
+        index++;
+      }
     }
   }
 
