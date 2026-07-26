@@ -274,70 +274,11 @@ def test_non_listed_code_fails_end_to_end(tmp_path: Path):
     assert "event: failed" in events.text
 
 
-class BlockingMarket:
-    """Blocks fetch until released, letting a second task be attempted while the
-    first is in flight (AC-051)."""
-
-    def __init__(self) -> None:
-        self.gate = threading.Event()
-
-    def fetch(self, codes, start_date, end_date, fill_name, fill_ideal_buy,
-              fill_ideal_sell, progress=None):
-        # Block until the test releases the gate (with a long safety timeout).
-        self.gate.wait(timeout=30)
-        return [MarketRow(c, "测试股票", Decimal("10.25"), Decimal("11.50")) for c in codes]
-
-
-async def _start_process_raw(service, tmp_path, codes=("000001",),
-                             fill_ideal_buy=True):
-    """Drive TaskService.start_process directly so the first task's background
-    coroutine has actually started (and locked) before the second is attempted.
-    TestClient serialises requests, which can mask the concurrency window."""
-    from io import BytesIO
-    from fastapi import UploadFile
-    from storpt_api.models import ProcessInput
-
-    upload = UploadFile(file=BytesIO(b"input"), filename="template.xlsx")
-    request = ProcessInput(0, 27, 29, "2026.02.02", "2026.02.06",
-                           list(codes), False, fill_ideal_buy, False)
-    return await service.start_process(upload, request)
-
-
-def test_second_task_is_rejected_while_one_is_running(tmp_path: Path):
-    import asyncio
-    market = BlockingMarket()
-    service = TaskService(TaskWorkspace(tmp_path / "tasks"), StubWorker(), market)
-
-    async def scenario():
-        # First task starts and immediately blocks inside market.fetch, holding
-        # the single-task lock. start_process returns once the task is scheduled.
-        first_id = await _start_process_raw(service, tmp_path)
-        # While the first is blocked, a second start must raise SYSTEM-002.
-        try:
-            await _start_process_raw(service, tmp_path)
-            raised = None
-        except BackendError as exc:
-            raised = exc
-        # Release the first task so it can complete and clean up.
-        market.gate.set()
-        # Await the background runner to completion so asyncio.run can close the
-        # loop without a pending task (which would otherwise hang teardown).
-        first_task = service._tasks[first_id]
-        if first_task.runner is not None:
-            await first_task.runner
-        return raised
-
-    raised = asyncio.run(scenario())
-    assert raised is not None
-    assert raised.code == "SYSTEM-002"
-    assert raised.status_code == 409
-
-
 class SlowMarket:
-    """Sleeps longer than the configured timeout to exercise SYSTEM-001 (AC-052)
-    without waiting the real 180 seconds."""
+    """Sleeps briefly in fetch so the first task is still in flight when a second
+    POST arrives, then completes. Used for both concurrency and timeout tests."""
 
-    def __init__(self, seconds: float = 3.0) -> None:
+    def __init__(self, seconds: float = 1.0) -> None:
         self.seconds = seconds
 
     def fetch(self, codes, start_date, end_date, fill_name, fill_ideal_buy,
@@ -347,10 +288,48 @@ class SlowMarket:
         return [MarketRow(c, "测试股票", Decimal("10.25"), Decimal("11.50")) for c in codes]
 
 
+def test_second_task_is_rejected_while_one_is_running(tmp_path: Path):
+    # AC-051: a single account may run only one task. The first POST starts a
+    # task whose market.fetch sleeps, so _busy is held when the second POST
+    # arrives and must be rejected with SYSTEM-002. The first task then drains
+    # to completion via SSE so no background task outlives the request.
+    market = SlowMarket(seconds=2)
+    client = TestClient(make_app_with_market(tmp_path, market),
+                        base_url="https://testserver")
+    client.post("/api/auth/login", json={"password": TEST_PASSWORD})
+
+    first = client.post(
+        "/api/process",
+        data={
+            "sheet_index": "0", "title_row": "27", "data_start_row": "29",
+            "start_date": "2026.02.02", "end_date": "2026.02.06",
+            "codes": "000001", "fill_ideal_buy": "true",
+        },
+        files={"file": ("template.xlsx", b"input", "application/octet-stream")},
+    )
+    assert first.status_code == 202
+
+    second = client.post(
+        "/api/process",
+        data={
+            "sheet_index": "0", "title_row": "27", "data_start_row": "29",
+            "start_date": "2026.02.02", "end_date": "2026.02.06",
+            "codes": "600000", "fill_ideal_buy": "true",
+        },
+        files={"file": ("template.xlsx", b"input", "application/octet-stream")},
+    )
+    assert second.status_code == 409
+    assert second.json()["errors"][0]["code"] == "SYSTEM-002"
+
+    # Drain the first task's SSE so it completes and cleans up (no leak).
+    client.get(f"/api/tasks/{first.json()['taskId']}/events")
+
+
 def test_task_timeout_reports_system_001(tmp_path: Path, monkeypatch):
+    # AC-052: a task exceeding the time ceiling is aborted with SYSTEM-001 and
+    # produces no file. The ceiling is shrunk via wait_for so the test runs in
+    # seconds; SSE is drained to completion so no task outlives the request.
     import asyncio
-    # Shrink the wait_for ceiling so the test runs in seconds, not 180s. Patching
-    # the asyncio module symbol used by service._execute.
     original_wait_for = asyncio.wait_for
 
     async def fast_wait_for(coro, timeout):
@@ -358,28 +337,26 @@ def test_task_timeout_reports_system_001(tmp_path: Path, monkeypatch):
 
     monkeypatch.setattr(asyncio, "wait_for", fast_wait_for)
 
-    market = SlowMarket(seconds=2)
-    service = TaskService(TaskWorkspace(tmp_path / "tasks"), StubWorker(), market)
+    market = SlowMarket(seconds=5)
+    client = TestClient(make_app_with_market(tmp_path, market),
+                        base_url="https://testserver")
+    client.post("/api/auth/login", json={"password": TEST_PASSWORD})
 
-    async def scenario():
-        task_id = await _start_process_raw(service, tmp_path)
-        # Await the background runner to terminal state so asyncio.run can close
-        # the loop with no pending task (avoids teardown hang).
-        runner = service._tasks[task_id].runner
-        if runner is not None:
-            await runner
-        return task_id
+    response = client.post(
+        "/api/process",
+        data={
+            "sheet_index": "0", "title_row": "27", "data_start_row": "29",
+            "start_date": "2026.02.02", "end_date": "2026.02.06",
+            "codes": "000001", "fill_ideal_buy": "true",
+        },
+        files={"file": ("template.xlsx", b"input", "application/octet-stream")},
+    )
+    task_id = response.json()["taskId"]
 
-    task_id = asyncio.run(scenario())
-    # Inspect the recorded terminal event directly (SSE transport is covered
-    # elsewhere; here we assert the timeout mapped to SYSTEM-001).
-    task = service._tasks[task_id]
-    assert task.terminal
-    assert task.events[-1][0] == "failed"
-    payload = task.events[-1][1]
-    assert payload["error"]["code"] == "SYSTEM-001"
-    assert payload["result"] == "未生成文件"
-    # Timeout cleans the task directory (AC-053).
+    events = client.get(f"/api/tasks/{task_id}/events")
+    assert "event: failed" in events.text
+    assert '"code":"SYSTEM-001"' in events.text
+    assert '"result":"未生成文件"' in events.text
     assert list((tmp_path / "tasks").iterdir()) == []
 
 
