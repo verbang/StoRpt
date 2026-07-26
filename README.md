@@ -6,9 +6,11 @@ strictly compatible Excel workbook. The MVP product baseline is documented in
 
 ## Current stage
 
-Technical validation and the backend core are complete. The current stage adds
-the authenticated Vue PWA, two-upload workflow, SSE task progress, and
-single-use download delivery.
+Technical validation, the backend core, and the authenticated Vue PWA are
+complete. The current stage adds reproducible single-image packaging: a
+multi-stage Dockerfile that ships the frontend build, FastAPI, the JRE, and the
+Excel Worker, plus a CI gate that builds the image and smoke-tests `/healthz`,
+the auth guard, and the SPA index.
 
 No local Java, Maven, Node.js, or Docker installation is required. The
 technical validation is designed to run in GitHub Actions.
@@ -17,13 +19,14 @@ technical validation is designed to run in GitHub Actions.
 
 1. Publish this directory as a GitHub repository.
 2. Open the repository's **Actions** page.
-3. Use **Excel technical validation**, **FastAPI backend validation**, and
-   **PWA frontend validation** as the Java, Python integration, and frontend
-   release gates.
+3. Use **Excel technical validation**, **FastAPI backend validation**, **PWA
+   frontend validation**, and **Docker image validation** as the Java, Python
+   integration, frontend, and single-image release gates.
 4. Treat any failed workflow as a release blocker.
 
 The validation scope and remaining exit criteria are tracked in
-[`docs/technical-validation.md`](docs/technical-validation.md).
+[`docs/technical-validation.md`](docs/technical-validation.md). Deployment is
+documented in [`docs/deploy.md`](docs/deploy.md).
 
 ## Authentication configuration
 

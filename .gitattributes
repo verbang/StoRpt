@@ -8,5 +8,15 @@
 *.yaml text eol=lf
 *.yml text eol=lf
 
+# Shell scripts and Dockerfiles must keep LF line endings on every platform.
+*.sh text eol=lf
+Dockerfile text eol=lf
+*.py text eol=lf
+*.ts text eol=lf
+*.vue text eol=lf
+*.toml text eol=lf
+*.lock text eol=lf
+requirements.lock text eol=lf
+
 *.xls binary
 *.xlsx binary

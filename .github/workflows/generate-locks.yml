@@ -1,0 +1,62 @@
+name: Generate lock files
+
+# One-shot helper: produce reproducible Python and npm lock files for the
+# committed manifests, then upload them as an artifact. A maintainer downloads
+# the artifact, commits backend/requirements.lock and frontend/package-lock.json,
+# and re-runs deploy-validation to confirm the image builds from the locks alone.
+#
+# Run manually from the Actions tab. It does not push to the repo.
+
+on:
+  workflow_dispatch:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  locks:
+    name: Compile requirements.lock and package-lock.json
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v5
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Install pip-tools
+        run: python -m pip install --disable-pip-version-check pip-tools
+
+      - name: Compile requirements.lock
+        working-directory: backend
+        # Pin to the Python 3.12 resolver used by the runtime image. Emit hashes
+        # for supply-chain integrity; keep markers compatible with linux.
+        run: |
+          pip-compile --quiet \
+            --generate-hashes \
+            --resolver-version backtracking \
+            --output-file requirements.lock \
+            pyproject.toml
+
+      - name: Set up Node 24
+        uses: actions/setup-node@v5
+        with:
+          node-version: "24"
+
+      - name: Produce package-lock.json
+        working-directory: frontend
+        run: npm install --package-lock-only --no-audit --no-fund
+
+      - name: Upload lock files
+        uses: actions/upload-artifact@v4
+        with:
+          name: storpt-lock-files
+          path: |
+            backend/requirements.lock
+            frontend/package-lock.json
+          if-no-files-found: error
+          retention-days: 14
