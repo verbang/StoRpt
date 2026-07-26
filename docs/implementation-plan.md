@@ -74,3 +74,34 @@ deploy/                   Dockerfile、入口脚本、反向代理示例
 - `.xls` 与 `.xlsx` 的兼容样本均可保存、重开和下载。
 - 任何已知越界写入、部分文件交付或临时文件超期留存问题均为发布阻断项。
 - Docker 镜像、环境变量说明、部署步骤、备份/升级方式和已知限制已文档化。
+
+## 8. 实施进度
+
+> 最后更新：2026-07-26  
+> 主线分支：`main`，最新提交 `ebcde0f`。四条发布门槛 CI（Excel 技术验证、FastAPI 后端验证、PWA 前端验证、Docker 镜像验证）全绿。
+
+| 阶段 | 状态 | 实际产出 |
+| --- | :---: | --- |
+| 1. 技术验证 | ✅ 完成 | Apache POI 对 `.xls`/`.xlsx` 的读取、保存、重开、受控写入在 CI 通过；真实 `.xls` 样本 `platform2.xls` 与功能拒绝样本 `platform-reject.xlsx` 入仓并验证。 |
+| 2. Excel Worker 与后端核心 | ✅ 完成 | 模板解析、时间段校验、A:D 白名单写入、保存后自检、原子发布；FastAPI 任务编排、AKShare 适配、重试、临时文件清理、错误模型。 |
+| 3. PWA 界面与认证 | ✅ 完成 | 单用户登录、两次上传、表单校验、响应式布局、SSE 进度、错误复制、自动/手动下载、本地命名计数。 |
+| 4. 集成测试与部署 | 🟡 进行中 | 见下方子项。 |
+| 5. 缓冲与修复 | ⏳ 未开始 | 留待发布前缺陷修复。 |
+
+### 第 4 阶段子项进度
+
+- ✅ **可复现单镜像**（`deploy/Dockerfile` 三阶段：node→maven→python:3.12-slim，非 root + tini，从入仓 lock 文件复现构建）。`requirements.lock` 与 `package-lock.json` 已固化入仓。`docs/deploy.md` 覆盖构建/运行/反代/升级/已知限制。
+- ✅ **Docker 镜像 CI**（`deploy-validation.yml`）：构建镜像 + 冒烟 `/healthz`、`/api/auth/session`(AUTH-001)、SPA 首页。
+- ✅ **不兼容功能拒绝**（AC-015）：`UnsupportedFeatureDetector` 覆盖加密/保护/签名/外链/透视/图表/图片/形状/嵌入对象。VBA 宏与静态数据连接按 ADR-0013 修订容忍。顺带修复加密文件被误报 INPUT-001 的缺陷。
+- ✅ **发布测试矩阵（自动化部分）**：单元格级（8 复选框组合 + 代码缩减）在 Java Worker 测试；编排级（行情失败原子性、MARKET-001、并发拒绝 SYSTEM-002、超时 SYSTEM-001、格式透传）在后端测试。逐项映射见 `acceptance-criteria.md` 第 7.1 节。
+
+### 下次接续点（工作 ④：部署联调）
+
+第 4 阶段剩余全部依赖**真实运行环境与真实数据**，无法在 CI 内完成：
+
+1. **目标 Linux Docker 主机实测**：用真实环境变量（`STORPT_PASSWORD_HASH`、`STORPT_SESSION_SECRET`）启动镜像，在 HTTPS 反代后跑通完整登录→上传→处理→下载流程。
+2. **真实 AKShare 实时冒烟**：用真实 A 股代码与指定交易日验证行情链路（设计第 5 节"少量实时冒烟"）。
+3. **跨浏览器关键流程**：iOS Safari、Android/HarmonyOS 主流浏览器的文件重选与下载行为差异（AC 第 7 节第 4 项）。
+4. **`technical-validation.md` 剩余退出条件**：新增 A:D 样式复制不影响 E:S/整行属性的验证；`.xls` 与 `.xlsx` POI 已知差异的最终 Go/No-Go 结论；`.xls` 数字签名探测补齐（待真实签名样本）。
+
+> 备注：本机（Windows）无 docker/node/java，所有可自动化验证在 GitHub Actions 完成。后端 pytest 在本机 Python 3.14 上 success-path（TestClient）有偶发不稳定性，以 CI 的 Python 3.12 结果为准。

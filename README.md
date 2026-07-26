@@ -6,11 +6,16 @@ strictly compatible Excel workbook. The MVP product baseline is documented in
 
 ## Current stage
 
-Technical validation, the backend core, and the authenticated Vue PWA are
-complete. The current stage adds reproducible single-image packaging: a
-multi-stage Dockerfile that ships the frontend build, FastAPI, the JRE, and the
-Excel Worker, plus a CI gate that builds the image and smoke-tests `/healthz`,
-the auth guard, and the SPA index.
+Technical validation, the backend core, the authenticated Vue PWA, the
+reproducible single-image packaging, the unsupported-feature rejection
+(AC-015), and the automated release test matrix are complete. Four release-gate
+workflows are green on `main`.
+
+The remaining work is deployment-time validation on a real Linux Docker host:
+end-to-end run behind HTTPS, a live AKShare smoke test, and cross-browser
+file/download behaviour (iOS Safari, Android/HarmonyOS). Progress and the
+resume point are tracked in
+[`docs/implementation-plan.md`](docs/implementation-plan.md) section 8.
 
 No local Java, Maven, Node.js, or Docker installation is required. The
 technical validation is designed to run in GitHub Actions.
