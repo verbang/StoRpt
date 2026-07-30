@@ -146,33 +146,31 @@ final class UnsupportedFeatureDetector {
       }
     }
 
-    // Digital signature: an OLE2 .xls stores it as a named stream in the root
-    // storage. HSSFWorkbook exposes the root directory via POIDocument#getDirectory,
-    // so the detector does not need a separately reopened POIFSFileSystem. The
-    // legacy binary stream name is "\u0005DigitalSignature" (MS-OFFCRYPTO); later
-    // producers may use an XML signature substream instead.
-    boolean signed;
-    try {
-      signed = containsSignatureStream(workbook.getDirectory());
-    } catch (RuntimeException ignored) {
-      signed = false;
-    }
-    if (signed) {
+    // Digital signature: an OLE2 .xls stores it as a named stream or sub-storage
+    // in the root storage. HSSFWorkbook exposes the root directory via
+    // POIDocument#getDirectory, so the detector needs no separately reopened
+    // POIFSFileSystem. Per MS-OFFCRYPTO the classic binary CryptoAPI container is
+    // the "_signatures" root stream; XML-based signatures live under an
+    // "_xmlsignatures" storage. "\u0005DigitalSignature" is retained as a
+    // defensive fallback (it is the legacy binary signature definition stream).
+    // Unlike the XSSF OPC-relationship probe this path has no API that throws on
+    // a well-formed workbook, so failures surface rather than silently passing.
+    if (containsSignatureStream(workbook.getDirectory())) {
       throw error("工作簿包含数字签名。");
     }
   }
 
   /**
-   * Returns true when the OLE2 root storage carries a stream name known to hold
-   * a digital signature. The check is a coarse container probe (it does not
+   * Returns true when the OLE2 root storage carries an entry known to hold a
+   * digital signature. The check is a coarse container probe (it does not
    * validate the signature), mirroring the XSSF OPC-relationship check above.
    */
   private static boolean containsSignatureStream(
       org.apache.poi.poifs.filesystem.DirectoryNode root) {
     for (String entryName : root.getEntryNames()) {
-      if (entryName.equals("\u0005DigitalSignature")
-          || entryName.equals("DigitalSignature")
-          || entryName.equals("_xmlsignatures")) {
+      if (entryName.equals("_signatures")
+          || entryName.equals("_xmlsignatures")
+          || entryName.equals("\u0005DigitalSignature")) {
         return true;
       }
     }

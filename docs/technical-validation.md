@@ -45,9 +45,11 @@ AC 第 7 节的自动化矩阵已落地，逐项映射见 [`acceptance-criteria.
 `platform2.xls` 已覆盖真实 `.xls` 的模板识别与兼容样本往返，但 `.xls` 路径的
 不兼容功能拒绝（图表、图片、形状、嵌入对象等）仍依赖 Escher/drawing 粗判合并，
 仍需更多真实样本逐项细化。`.xls` 的数字签名探测已实现：通过
-`HSSFWorkbook.getDirectory()` 枚举 OLE2 根存储的签名流
-（`\u0005DigitalSignature` / `DigitalSignature` / `_xmlsignatures`）并拒绝
-（`UnsupportedFeatureDetector.detectHssf`），用程序化注入签名流的合成样本验证
-探测真实命中（`UnsupportedFeatureDetectorTest.rejectsHssfDigitalSignature`）。
-真实签名样本产生的精确流名仍待部署联调阶段用真实样本确认；若与假设不符，将作为
-ADR-0026 的 No-Go 触发条件处理。
+`HSSFWorkbook.getDirectory()` 枚举 OLE2 根存储的签名流并拒绝
+（`UnsupportedFeatureDetector.detectHssf`），匹配 MS-OFFCRYPTO 定义的二进制签名容器
+（`_signatures` / `_xmlsignatures`），并保留 `\u0005DigitalSignature` 作为遗留流名兜底。
+合成测试用 `POIFSFileSystem(InputStream)` 向干净工作簿注入 `_signatures` 根流、写盘后
+先用 `hasEntry` 自检流确实落盘、再交探测器断言 `TEMPLATE-005`
+（`UnsupportedFeatureDetectorTest.rejectsHssfDigitalSignature`）。真实签名样本产生的
+精确流名仍待部署联调阶段用真实样本确认；若与假设不符，将作为 ADR-0026 的 No-Go
+触发条件处理。

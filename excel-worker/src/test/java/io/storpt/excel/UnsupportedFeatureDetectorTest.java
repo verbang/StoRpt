@@ -3,6 +3,7 @@ package io.storpt.excel;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.ByteArrayInputStream;
 import java.io.OutputStream;
@@ -112,25 +113,35 @@ class UnsupportedFeatureDetectorTest {
   void rejectsHssfDigitalSignature() throws Exception {
     // A real signed .xls is unavailable, so the signature OLE2 stream is
     // injected programmatically: write a clean workbook, reopen the raw
-    // container, add the "\u0005DigitalSignature" stream MS-OFFCRYPTO defines,
-    // save, and reopen via WorkbookFactory. This proves the detector finds the
+    // container from an InputStream (the canonical POIFS read-inject-write
+    // path), add the "_signatures" root stream MS-OFFCRYPTO defines for binary
+    // CryptoAPI signatures, and write out. This proves the detector finds the
     // stream through HSSFWorkbook.getDirectory() rather than relying on the
     // coarse drawing-Escher fallback.
-    Path clean = temporaryDirectory.resolve("clean.xls");
-    try (HSSFWorkbook workbook = createCompatibleHssf()) {
-      try (OutputStream stream = Files.newOutputStream(clean)) {
-        workbook.write(stream);
-      }
+    byte[] cleanBytes;
+    try (HSSFWorkbook workbook = createCompatibleHssf();
+        java.io.ByteArrayOutputStream buffer = new java.io.ByteArrayOutputStream()) {
+      workbook.write(buffer);
+      cleanBytes = buffer.toByteArray();
     }
 
     Path signed = temporaryDirectory.resolve("signed.xls");
-    try (POIFSFileSystem fs = new POIFSFileSystem(clean.toFile())) {
+    try (POIFSFileSystem fs = new POIFSFileSystem(new ByteArrayInputStream(cleanBytes))) {
       fs.getRoot().createDocument(
-          "\u0005DigitalSignature",
+          "_signatures",
           new ByteArrayInputStream(new byte[] {0x30, 0x2E})); // dummy ASN.1 SEQUENCE head
       try (OutputStream stream = Files.newOutputStream(signed)) {
         fs.writeFilesystem(stream);
       }
+    }
+
+    // Self-check: the injected signature stream must be physically present in
+    // the written file's root storage, independent of the detector. If this
+    // fails, the injection is the problem; if it passes but the detector below
+    // does not fire, the detector is swallowing the failure.
+    try (POIFSFileSystem probe = new POIFSFileSystem(signed.toFile())) {
+      assertTrue(probe.getRoot().hasEntry("_signatures"),
+          "Injected _signatures stream missing from signed.xls root storage");
     }
 
     try (Workbook reopened = WorkbookFactory.create(signed.toFile())) {
