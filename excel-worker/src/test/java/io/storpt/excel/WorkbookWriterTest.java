@@ -1,6 +1,7 @@
 package io.storpt.excel;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -79,6 +80,76 @@ class WorkbookWriterTest {
       WorkbookSnapshot.CellSelector protectedCells = protectedCells(0, 27, 29, 36);
       assertEquals(protectedBefore, WorkbookSnapshot.capture(reopened, protectedCells));
       assertEquals("000008", reopened.getSheetAt(0).getRow(36).getCell(0).getStringCellValue());
+    }
+  }
+
+  /**
+   * AC-036 + ADR-0020: copying the sample row's style onto newly-created A:D
+   * cells must not leak into E:S of any row, and must not touch any whole-row
+   * property (height, hidden, outline level) of any existing row.
+   *
+   * <p>The {@code writesDynamicRows...} test asserts the *positive* direction
+   * (new A:D cells inherit the sample style). This test pins down the *negative*
+   * boundary that was only implicit before: after a write that extends the data
+   * region by two new rows, the entire workbook must be byte-for-byte equal to
+   * its pre-write snapshot everywhere except the allowlisted A:D cells of the
+   * extended region. Because {@link WorkbookSnapshot} records row height, row
+   * hidden, row outline level and the full E:S cell style (font, border colors,
+   * wrap, ...), a single snapshot equality covers both gaps at once. A direct
+   * sample-row property assertion is added as a regression guard against any
+   * future {@code setHeight} slipping into the writer.
+   */
+  @Test
+  void styleCopyLeavesExistingRowsAndProtectedColumnsUntouched() throws Exception {
+    try (Workbook workbook = openTemplate()) {
+      TemplateMetadata metadata = analyzer.analyze(workbook);
+      Sheet sheet = workbook.getSheetAt(metadata.sheetIndex());
+      int sampleRowIndex = metadata.latestPeriod().dataEndRow(); // row 34 in platform.xlsx
+      Row sampleRowBefore = sheet.getRow(sampleRowIndex);
+      assertNotNull(sampleRowBefore, "Template must provide a sample row at the latest data end");
+      short sampleHeightBefore = sampleRowBefore.getHeight();
+      boolean sampleHiddenBefore = sampleRowBefore.getZeroHeight();
+      int sampleOutlineBefore = sampleRowBefore.getOutlineLevel();
+
+      WorkbookWriteRequest request = request(stockRows(8), true, true, true);
+      int newDataEndRow = request.dataStartRow() + request.rows().size() - 1; // row 36
+
+      // Protect everything EXCEPT the cells the writer is allowed to change:
+      // the latest period's A-column title cell, and A:D of the data region
+      // extended to newDataEndRow so the new rows' A:D are excluded from the
+      // comparison while their (must-be-empty) E:S stay protected.
+      WorkbookSnapshot.CellSelector protectedCells = protectedCells(
+          metadata.sheetIndex(),
+          metadata.latestPeriod().titleRow(),
+          metadata.latestPeriod().dataStartRow(),
+          Math.max(metadata.latestPeriod().dataEndRow(), newDataEndRow));
+      WorkbookSnapshot before = WorkbookSnapshot.capture(workbook, protectedCells);
+
+      writer.write(workbook, request);
+
+      assertEquals(before, WorkbookSnapshot.capture(workbook, protectedCells),
+          "A:D style copy leaked into a protected cell or changed a whole-row property");
+
+      // Direct regression guard: the sample row's whole-row properties are
+      // unchanged even though its A:D style was just cloned onto new rows.
+      Row sampleRowAfter = sheet.getRow(sampleRowIndex);
+      assertEquals(sampleHeightBefore, sampleRowAfter.getHeight(),
+          "Sample row height changed during a write");
+      assertEquals(sampleHiddenBefore, sampleRowAfter.getZeroHeight(),
+          "Sample row hidden flag changed during a write");
+      assertEquals(sampleOutlineBefore, sampleRowAfter.getOutlineLevel(),
+          "Sample row outline level changed during a write");
+
+      // The two newly-created rows must not have grown E:S cells.
+      for (int rowIndex = metadata.latestPeriod().dataEndRow() + 1; rowIndex <= newDataEndRow;
+          rowIndex++) {
+        Row row = sheet.getRow(rowIndex);
+        assertNotNull(row, "Extended data row was not created");
+        for (int columnIndex = 4; columnIndex <= 18; columnIndex++) {
+          assertNull(row.getCell(columnIndex),
+              "New row " + rowIndex + " grew an unexpected E:S cell at column " + columnIndex);
+        }
+      }
     }
   }
 
