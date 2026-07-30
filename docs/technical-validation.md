@@ -26,9 +26,9 @@ Apache POI 对兼容 `.xls` 和 `.xlsx` 工作簿的读取、保存、重开及�
 - [x] GitHub Actions 中全部现有验证通过（2026-07-23，第 5 次运行）。
 - [x] 增加一份由 Excel 或 WPS 实际保存的兼容 `.xls` 样本并通过验证（`platform2.xls`，2026-07-26）。
 - [x] 为密码、保护、签名、外链、透视表、图表、图片、形状和嵌入对象建立可获得的拒绝样本及探测结果（2026-07-26）。VBA 宏和静态数据连接按 [ADR-0013](adr/0013-strict-excel-compatibility.md) 修订予以容忍，不再纳入拒绝探测。
-- [ ] 验证新增 A:D 单元格的样式复制不改变 E:S 或整行属性。
+- [ ] 验证新增 A:D 单元格的样式复制不改变 E:S 或整行属性。测试已落地（`WorkbookWriterTest.styleCopyLeavesExistingRowsAndProtectedColumnsUntouched`，2026-07-30），待 CI 运行后勾选。
 - [x] 验证代码缩减时只清除 A 列尾部旧代码，未勾选 B:D 保持原坐标值（`WorkbookWriterTest.shorterCodeListClearsOldCodeTailAndPreservesOptionalColumns`，2026-07-26）。
-- [ ] 记录 Apache POI 对 `.xls` 与 `.xlsx` 的已知差异和最终 Go/No-Go 结论。
+- [ ] 记录 Apache POI 对 `.xls` 与 `.xlsx` 的已知差异和最终 Go/No-Go 结论。结论已记录于 [ADR-0026](adr/0026-poi-hssf-xssf-known-differences.md)（2026-07-30，Go，附两条 No-Go 触发条件）；待本批次 `.xls` 签名探测与样式复制测试在 CI 通过后正式勾选。
 
 ## 发布测试矩阵覆盖（2026-07-26）
 

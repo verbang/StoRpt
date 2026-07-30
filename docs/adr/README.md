@@ -31,3 +31,4 @@
 - [ADR-0023：使用单页响应式界面和两次短暂上传](0023-page-and-upload-flow.md)
 - [ADR-0024：采用 FastAPI 与 Apache POI 单镜像架构](0024-technical-architecture.md)
 - [ADR-0025：冻结 MVP 范围并以安全验收项作为发布门槛](0025-mvp-scope-and-release-gate.md)
+- [ADR-0026：记录 Apache POI 对 `.xls` 与 `.xlsx` 的已知差异并给出 Go/No-Go 结论](0026-poi-hssf-xssf-known-differences.md)
