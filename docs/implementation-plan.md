@@ -78,7 +78,7 @@ deploy/                   Dockerfile、入口脚本、反向代理示例
 ## 8. 实施进度
 
 > 最后更新：2026-07-30  
-> 主线分支：`main`，最新提交 `280b203`。本机（Windows）无 java/maven，2026-07-30 三项技术验证补齐的代码改动已提交但尚未经 CI 运行；待推送后以四条发布门槛 CI（Excel 技术验证、FastAPI 后端验证、PWA 前端验证、Docker 镜像验证）结果为准。
+> 主线分支：`main`，最新提交 `a58b656`。三条发布门槛 CI（Excel 技术验证、PWA 前端验证、Docker 镜像验证）全绿。**FastAPI 后端验证（backend-validation）有预存的 `TestClient` teardown 竞态**，会在 job 超时处 cancel，与本次改动无关（见下方「已知问题」）。
 
 | 阶段 | 状态 | 实际产出 |
 | --- | :---: | --- |
@@ -94,7 +94,7 @@ deploy/                   Dockerfile、入口脚本、反向代理示例
 - ✅ **Docker 镜像 CI**（`deploy-validation.yml`）：构建镜像 + 冒烟 `/healthz`、`/api/auth/session`(AUTH-001)、SPA 首页。
 - ✅ **不兼容功能拒绝**（AC-015）：`UnsupportedFeatureDetector` 覆盖加密/保护/签名/外链/透视/图表/图片/形状/嵌入对象。VBA 宏与静态数据连接按 ADR-0013 修订容忍。顺带修复加密文件被误报 INPUT-001 的缺陷。`.xls` 数字签名探测于 2026-07-30 补齐（`detectHssf` 经 OLE2 根签名流），用合成注入样本验证命中。
 - ✅ **发布测试矩阵（自动化部分）**：单元格级（8 复选框组合 + 代码缩减）在 Java Worker 测试；编排级（行情失败原子性、MARKET-001、并发拒绝 SYSTEM-002、超时 SYSTEM-001、格式透传）在后端测试。逐项映射见 `acceptance-criteria.md` 第 7.1 节。
-- ✅ **技术验证补齐（2026-07-30，代码已提交，待 CI 运行）**：(1) A:D 样式复制不影响 E:S/整行属性的负向边界测试 `WorkbookWriterTest.styleCopyLeavesExistingRowsAndProtectedColumnsUntouched`；(2) `.xls` 数字签名探测实现 + 2 个 HSSF 测试；(3) POI `.xls`/`.xlsx` 已知差异与 Go/No-Go 结论记录为 [ADR-0026](adr/0026-poi-hssf-xssf-known-differences.md)（Go，附两条 No-Go 触发条件）。
+- ✅ **技术验证补齐（2026-07-30，Excel 技术验证 CI 已绿）**：(1) A:D 样式复制不影响 E:S/整行属性的负向边界测试 `WorkbookWriterTest.styleCopyLeavesExistingRowsAndProtectedColumnsUntouched`（CI 通过）；(2) `.xls` 数字签名探测实现 + 2 个 HSSF 测试（CI 通过）；(3) POI `.xls`/`.xlsx` 已知差异与 Go/No-Go 结论记录为 [ADR-0026](adr/0026-poi-hssf-xssf-known-differences.md)（Go，附两条 No-Go 触发条件）。
 
 ### 下次接续点（工作 ④：部署联调）
 
@@ -105,4 +105,13 @@ deploy/                   Dockerfile、入口脚本、反向代理示例
 3. **跨浏览器关键流程**：iOS Safari、Android/HarmonyOS 主流浏览器的文件重选与下载行为差异（AC 第 7 节第 4 项）。
 4. ~~**`technical-validation.md` 剩余退出条件**~~：三项（A:D 样式复制测试、`.xls`/`.xlsx` POI 已知差异 Go/No-Go、`.xls` 数字签名探测）已于 2026-07-30 补齐代码与文档，仅剩「真实签名 `.xls` 样本的精确流名确认」作为 ADR-0026 的 No-Go 触发条件，归入部署联调阶段用真实样本核对。
 
-> 备注：本机（Windows）无 docker/node/java，所有可自动化验证在 GitHub Actions 完成。后端 pytest 在本机 Python 3.14 上 success-path（TestClient）有偶发不稳定性，以 CI 的 Python 3.12 结果为准。
+> 备注：本机（Windows）无 docker/node/java，所有可自动化验证在 GitHub Actions 完成。
+
+### 已知问题：FastAPI 后端验证（backend-validation）竞态 cancel
+
+`backend-validation` 工作流在 `Run backend tests`（`pytest backend/tests`）步骤偶发撞 job 超时被 cancel（`The operation was canceled`），现象为 pytest 连 `collected N items` 都未输出。
+
+- **性质**：`TestClient`（httpx/starlette）在退出时与后台 `_execute` 任务/SSE 流的事件循环 teardown 存在竞态，**与本次任务无关**——该问题在 2026-07-26 的提交 `4793afd`/`e9a7ab5`/`ebcde0f` 已被尝试修复，但未根治。
+- **复现**：本机（Python 3.14）默认模式约 2/15 概率 hang；CI（Ubuntu + Python 3.12）必现。`pytest-timeout` 的 `--timeout` 对 teardown 阶段无效（只对单个测试生效）。
+- **影响范围**：Excel 技术验证（Java 单元测试）不受影响、已绿；此问题仅影响后端编排测试的 CI gate。
+- **待办**：后续单独处理。可能方向——把 SSE/后台任务测试从 TestClient HTTP 路径改为直接测 service 层（沿用 `4793afd` 对并发/超时测试的做法），或拆分 CI job 隔离真实 Java 集成测试。本机无 Python 3.12 环境，无法可靠复现 CI 条件，故暂不提交未验证的修复。

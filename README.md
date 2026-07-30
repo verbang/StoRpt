@@ -8,8 +8,13 @@ strictly compatible Excel workbook. The MVP product baseline is documented in
 
 Technical validation, the backend core, the authenticated Vue PWA, the
 reproducible single-image packaging, the unsupported-feature rejection
-(AC-015), and the automated release test matrix are complete. Four release-gate
-workflows are green on `main`.
+(AC-015), and the automated release test matrix are complete. Three of the
+four release-gate workflows are green on `main` (Excel technical validation,
+PWA frontend validation, Docker image validation). The FastAPI backend
+validation workflow has a pre-existing intermittent `TestClient` teardown
+race that cancels runs at the job timeout; it is tracked as a known issue
+unrelated to the current task — see
+[`docs/implementation-plan.md`](docs/implementation-plan.md) section 8.
 
 The remaining work is deployment-time validation on a real Linux Docker host:
 end-to-end run behind HTTPS, a live AKShare smoke test, and cross-browser
