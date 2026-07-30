@@ -77,16 +77,16 @@ deploy/                   Dockerfile、入口脚本、反向代理示例
 
 ## 8. 实施进度
 
-> 最后更新：2026-07-30  
-> 主线分支：`main`，最新提交 `a58b656`。三条发布门槛 CI（Excel 技术验证、PWA 前端验证、Docker 镜像验证）全绿。**FastAPI 后端验证（backend-validation）有预存的 `TestClient` teardown 竞态**，会在 job 超时处 cancel，与本次改动无关（见下方「已知问题」）。
+> 最后更新：2026-07-31  
+> 主线分支：`main`，最新提交 `c26d7a6`（已同步 origin）。三条发布门槛 CI（Excel 技术验证、PWA 前端验证、Docker 镜像验证）全绿。**FastAPI 后端验证（backend-validation）有预存的 `TestClient` teardown 竞态**，会在 job 超时处 cancel，与本次改动无关（见下方「已知问题」）。
 
 | 阶段 | 状态 | 实际产出 |
 | --- | :---: | --- |
 | 1. 技术验证 | ✅ 完成 | Apache POI 对 `.xls`/`.xlsx` 的读取、保存、重开、受控写入在 CI 通过；真实 `.xls` 样本 `platform2.xls` 与功能拒绝样本 `platform-reject.xlsx` 入仓并验证。 |
 | 2. Excel Worker 与后端核心 | ✅ 完成 | 模板解析、时间段校验、A:D 白名单写入、保存后自检、原子发布；FastAPI 任务编排、AKShare 适配、重试、临时文件清理、错误模型。 |
 | 3. PWA 界面与认证 | ✅ 完成 | 单用户登录、两次上传、表单校验、响应式布局、SSE 进度、错误复制、自动/手动下载、本地命名计数。 |
-| 4. 集成测试与部署 | 🟡 进行中 | 见下方子项。 |
-| 5. 缓冲与修复 | ⏳ 未开始 | 留待发布前缺陷修复。 |
+| 4. 集成测试与部署 | 🟡 进行中 | 自动化部分全绿；剩余为部署联调（见下方「后续待办」）。 |
+| 5. 缓冲与修复 | 🟡 进行中 | 2026-07-30 已修复 `.xls` 签名探测首次 CI 报错（`bfc703a`，流名修正为 MS-OFFCRYPTO 权威值）；backend-validation 竞态待修。 |
 
 ### 第 4 阶段子项进度
 
@@ -96,22 +96,33 @@ deploy/                   Dockerfile、入口脚本、反向代理示例
 - ✅ **发布测试矩阵（自动化部分）**：单元格级（8 复选框组合 + 代码缩减）在 Java Worker 测试；编排级（行情失败原子性、MARKET-001、并发拒绝 SYSTEM-002、超时 SYSTEM-001、格式透传）在后端测试。逐项映射见 `acceptance-criteria.md` 第 7.1 节。
 - ✅ **技术验证补齐（2026-07-30，Excel 技术验证 CI 已绿）**：(1) A:D 样式复制不影响 E:S/整行属性的负向边界测试 `WorkbookWriterTest.styleCopyLeavesExistingRowsAndProtectedColumnsUntouched`（CI 通过）；(2) `.xls` 数字签名探测实现 + 2 个 HSSF 测试（CI 通过）；(3) POI `.xls`/`.xlsx` 已知差异与 Go/No-Go 结论记录为 [ADR-0026](adr/0026-poi-hssf-xssf-known-differences.md)（Go，附两条 No-Go 触发条件）。
 
-### 下次接续点（工作 ④：部署联调）
+### 本次工作记录（2026-07-30～31）
 
-第 4 阶段剩余全部依赖**真实运行环境与真实数据**，无法在 CI 内完成：
+补齐 `technical-validation.md` 的三项退出条件，全部在 Excel 技术验证 CI 通过：
 
-1. **目标 Linux Docker 主机实测**：用真实环境变量（`STORPT_PASSWORD_HASH`、`STORPT_SESSION_SECRET`）启动镜像，在 HTTPS 反代后跑通完整登录→上传→处理→下载流程。
-2. **真实 AKShare 实时冒烟**：用真实 A 股代码与指定交易日验证行情链路（设计第 5 节"少量实时冒烟"）。
-3. **跨浏览器关键流程**：iOS Safari、Android/HarmonyOS 主流浏览器的文件重选与下载行为差异（AC 第 7 节第 4 项）。
-4. ~~**`technical-validation.md` 剩余退出条件**~~：三项（A:D 样式复制测试、`.xls`/`.xlsx` POI 已知差异 Go/No-Go、`.xls` 数字签名探测）已于 2026-07-30 补齐代码与文档，仅剩「真实签名 `.xls` 样本的精确流名确认」作为 ADR-0026 的 No-Go 触发条件，归入部署联调阶段用真实样本核对。
+| 提交 | 内容 | 结果 |
+| --- | --- | --- |
+| `13a5397` | A:D 样式复制负向边界测试 `WorkbookWriterTest.styleCopyLeavesExistingRowsAndProtectedColumnsUntouched`（AC-036/ADR-0020） | ✅ CI 绿 |
+| `da85806`→`bfc703a` | `.xls` 数字签名探测（`detectHssf` 经 `HSSFWorkbook.getDirectory()` 枚举 OLE2 根签名流）；首次 CI 报错后修正流名为 MS-OFFCRYPTO 权威值 `_signatures`/`_xmlsignatures` + 加注入自检 | ✅ CI 绿 |
+| `280b203` | ADR-0026：POI HSSF/XSSF 已知差异 + Go/No-Go 结论（Go，附两条 No-Go 触发条件） | 文档 |
+| `c26d7a6` | 文档收尾：修正 CI 状态、勾选退出条件、记录 backend 竞态 | 文档 |
+
+诊断并记录了 backend-validation 的预存竞态（详见下方「后续待办」第 5 项），未提交未验证的代码修复。
+
+### 后续待办清单
+
+按优先级排列。**第 1～4 项依赖真实运行环境/数据/设备，无法在 CI 内完成**；第 5 项是代码层修复。
+
+1. **【部署联调，最高优先级】目标 Linux Docker 主机端到端实测**：用真实环境变量（`STORPT_PASSWORD_HASH`、`STORPT_SESSION_SECRET`）启动镜像，在 HTTPS 反代后跑通完整登录→上传→处理→下载流程，验证 SSE 在反代后不缓冲（AC-055）。需要：Linux 主机 + 域名 + HTTPS 证书。
+2. **【部署联调】真实 AKShare 实时冒烟**：用真实 A 股代码与指定交易日验证行情链路——沪深京清单、不复权开/收盘价取值、休市/停牌按 MARKET 错误显式失败、网络异常重试 3 次（AC-023/024/025）。依赖第 1 项环境就绪。
+3. **【部署联调】跨浏览器关键流程**：iOS Safari、Android/HarmonyOS 主流浏览器的文件重选与下载行为差异（AC 第 7 节第 4 项），差异写入发布说明。依赖第 2 项跑通。
+4. **【部署联调】真实签名 `.xls` 样本流名确认**：取得真实签名样本，核对流名是否在 `_signatures`/`_xmlsignatures`/`\u0005DigitalSignature` 清单内。若不符，作为 ADR-0026 的 No-Go 触发条件处理（扩 HSSF 拒绝范围）。
+5. **【代码修复】backend-validation 的 TestClient teardown 竞态**：
+   - **现象**：`pytest backend/tests` 在 job 超时处 cancel（`The operation was canceled`），pytest 连 `collected N items` 都未输出。
+   - **根因**：`TestClient`（httpx/starlette）退出时与后台 `_execute` 任务/SSE 流的事件循环 teardown 竞态。**与本次任务无关**——2026-07-26 的 `4793afd`/`e9a7ab5`/`ebcde0f` 已尝试修复未根治。
+   - **复现**：本机（Python 3.14）默认模式约 2/15 概率 hang；CI（Ubuntu + Python 3.12）必现。`pytest-timeout` 的 `--timeout` 对 teardown 无效（只对单个测试生效）。
+   - **影响**：仅影响后端编排测试的 CI gate；Excel 技术验证（Java 单元测试）不受影响、已绿。
+   - **候选修复方向**：把 `test_api.py` 里走 TestClient + 真实后台 `_execute` 的 SSE 测试改为直接测 service 层（沿用 `4793afd` 对并发/超时测试的做法），或拆分 CI job 隔离真实 Java 集成测试（`test_worker_integration`）。
+   - **障碍**：本机无 Python 3.12 环境，无法可靠复现 CI 条件；需在 CI 或本地 Python 3.12 环境迭代验证。
 
 > 备注：本机（Windows）无 docker/node/java，所有可自动化验证在 GitHub Actions 完成。
-
-### 已知问题：FastAPI 后端验证（backend-validation）竞态 cancel
-
-`backend-validation` 工作流在 `Run backend tests`（`pytest backend/tests`）步骤偶发撞 job 超时被 cancel（`The operation was canceled`），现象为 pytest 连 `collected N items` 都未输出。
-
-- **性质**：`TestClient`（httpx/starlette）在退出时与后台 `_execute` 任务/SSE 流的事件循环 teardown 存在竞态，**与本次任务无关**——该问题在 2026-07-26 的提交 `4793afd`/`e9a7ab5`/`ebcde0f` 已被尝试修复，但未根治。
-- **复现**：本机（Python 3.14）默认模式约 2/15 概率 hang；CI（Ubuntu + Python 3.12）必现。`pytest-timeout` 的 `--timeout` 对 teardown 阶段无效（只对单个测试生效）。
-- **影响范围**：Excel 技术验证（Java 单元测试）不受影响、已绿；此问题仅影响后端编排测试的 CI gate。
-- **待办**：后续单独处理。可能方向——把 SSE/后台任务测试从 TestClient HTTP 路径改为直接测 service 层（沿用 `4793afd` 对并发/超时测试的做法），或拆分 CI job 隔离真实 Java 集成测试。本机无 Python 3.12 环境，无法可靠复现 CI 条件，故暂不提交未验证的修复。
