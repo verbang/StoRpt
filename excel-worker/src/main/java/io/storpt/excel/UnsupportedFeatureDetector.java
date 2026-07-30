@@ -146,10 +146,37 @@ final class UnsupportedFeatureDetector {
       }
     }
 
-    // Note: .xls digital signature detection is intentionally omitted. The
-    // "Signature" OLE2 stream lives in the raw container, which this detector
-    // cannot reopen from a Workbook handle. XSSF signatures are detected above;
-    // HSSF signature coverage is tracked as a known gap pending a real sample.
+    // Digital signature: an OLE2 .xls stores it as a named stream in the root
+    // storage. HSSFWorkbook exposes the root directory via POIDocument#getDirectory,
+    // so the detector does not need a separately reopened POIFSFileSystem. The
+    // legacy binary stream name is "\u0005DigitalSignature" (MS-OFFCRYPTO); later
+    // producers may use an XML signature substream instead.
+    boolean signed;
+    try {
+      signed = containsSignatureStream(workbook.getDirectory());
+    } catch (RuntimeException ignored) {
+      signed = false;
+    }
+    if (signed) {
+      throw error("工作簿包含数字签名。");
+    }
+  }
+
+  /**
+   * Returns true when the OLE2 root storage carries a stream name known to hold
+   * a digital signature. The check is a coarse container probe (it does not
+   * validate the signature), mirroring the XSSF OPC-relationship check above.
+   */
+  private static boolean containsSignatureStream(
+      org.apache.poi.poifs.filesystem.DirectoryNode root) {
+    for (String entryName : root.getEntryNames()) {
+      if (entryName.equals("\u0005DigitalSignature")
+          || entryName.equals("DigitalSignature")
+          || entryName.equals("_xmlsignatures")) {
+        return true;
+      }
+    }
+    return false;
   }
 
   // ---- Common detections (both formats) -----------------------------------

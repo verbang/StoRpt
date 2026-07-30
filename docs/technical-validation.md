@@ -43,6 +43,11 @@ AC 第 7 节的自动化矩阵已落地，逐项映射见 [`acceptance-criteria.
 
 程序化生成的 `.xls` 只能证明基础 HSSF 往返能力，不能替代真实 Excel/WPS 文件。
 `platform2.xls` 已覆盖真实 `.xls` 的模板识别与兼容样本往返，但 `.xls` 路径的
-不兼容功能拒绝（图表、签名、嵌入对象等）目前依赖 Escher/drawing 粗判，仍需更多
-真实样本逐项确认。此外 `.xls` 的数字签名探测尚未实现（详见
-`UnsupportedFeatureDetector` 注释），待取得真实签名样本后补齐。
+不兼容功能拒绝（图表、图片、形状、嵌入对象等）仍依赖 Escher/drawing 粗判合并，
+仍需更多真实样本逐项细化。`.xls` 的数字签名探测已实现：通过
+`HSSFWorkbook.getDirectory()` 枚举 OLE2 根存储的签名流
+（`\u0005DigitalSignature` / `DigitalSignature` / `_xmlsignatures`）并拒绝
+（`UnsupportedFeatureDetector.detectHssf`），用程序化注入签名流的合成样本验证
+探测真实命中（`UnsupportedFeatureDetectorTest.rejectsHssfDigitalSignature`）。
+真实签名样本产生的精确流名仍待部署联调阶段用真实样本确认；若与假设不符，将作为
+ADR-0026 的 No-Go 触发条件处理。

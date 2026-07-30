@@ -4,9 +4,12 @@ import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
+import java.io.ByteArrayInputStream;
 import java.io.OutputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import org.apache.poi.hssf.usermodel.HSSFWorkbook;
+import org.apache.poi.poifs.filesystem.POIFSFileSystem;
 import org.apache.poi.ss.usermodel.CellType;
 import org.apache.poi.ss.usermodel.Row;
 import org.apache.poi.ss.usermodel.Sheet;
@@ -91,6 +94,50 @@ class UnsupportedFeatureDetectorTest {
     }
   }
 
+  // ---- HSSF (.xls) detections ---------------------------------------------
+
+  @Test
+  void acceptsCleanHssfTemplate() throws Exception {
+    // Baseline: a clean .xls must not trip the detector. Until now every test
+    // in this class was XSSF-only; this guards the HSSF path against false
+    // positives (notably the new digital-signature stream probe).
+    try (HSSFWorkbook workbook = createCompatibleHssf()) {
+      try (Workbook reopened = writeAndReopenXls(workbook)) {
+        assertDoesNotThrow(() -> analyzer.analyze(reopened));
+      }
+    }
+  }
+
+  @Test
+  void rejectsHssfDigitalSignature() throws Exception {
+    // A real signed .xls is unavailable, so the signature OLE2 stream is
+    // injected programmatically: write a clean workbook, reopen the raw
+    // container, add the "\u0005DigitalSignature" stream MS-OFFCRYPTO defines,
+    // save, and reopen via WorkbookFactory. This proves the detector finds the
+    // stream through HSSFWorkbook.getDirectory() rather than relying on the
+    // coarse drawing-Escher fallback.
+    Path clean = temporaryDirectory.resolve("clean.xls");
+    try (HSSFWorkbook workbook = createCompatibleHssf()) {
+      try (OutputStream stream = Files.newOutputStream(clean)) {
+        workbook.write(stream);
+      }
+    }
+
+    Path signed = temporaryDirectory.resolve("signed.xls");
+    try (POIFSFileSystem fs = new POIFSFileSystem(clean.toFile())) {
+      fs.getRoot().createDocument(
+          "\u0005DigitalSignature",
+          new ByteArrayInputStream(new byte[] {0x30, 0x2E})); // dummy ASN.1 SEQUENCE head
+      try (OutputStream stream = Files.newOutputStream(signed)) {
+        fs.writeFilesystem(stream);
+      }
+    }
+
+    try (Workbook reopened = WorkbookFactory.create(signed.toFile())) {
+      assertTemplate005(reopened, "数字签名");
+    }
+  }
+
   // ---- helpers ------------------------------------------------------------
 
   private void assertTemplate005(Workbook workbook, String featureFragment) {
@@ -125,8 +172,38 @@ class UnsupportedFeatureDetectorTest {
     return workbook;
   }
 
+  /**
+   * Minimal compatible .xls (HSSF) template, mirroring {@link #baseTemplate()}
+   * but forcing recalculation-on-open so it clears {@code WorkbookCalculation}.
+   * Carries no pictures, drawings or other unsupported content.
+   */
+  static HSSFWorkbook createCompatibleHssf() {
+    HSSFWorkbook workbook = new HSSFWorkbook();
+    Sheet sheet = workbook.createSheet("Sheet1");
+    Row title = sheet.createRow(0);
+    title.createCell(0).setCellValue("2026.01.05 - 2026.01.09");
+    sheet.addMergedRegion(new CellRangeAddress(0, 0, 0, 18));
+    Row header = sheet.createRow(1);
+    header.createCell(0).setCellValue("股票代码");
+    header.createCell(1).setCellValue("股票名称");
+    header.createCell(2).setCellValue("理想进价");
+    header.createCell(3).setCellValue("理想出价");
+    Row data = sheet.createRow(2);
+    data.createCell(0, CellType.STRING).setCellValue("000001");
+    workbook.setForceFormulaRecalculation(true);
+    return workbook;
+  }
+
   private Workbook writeAndReopen(Workbook workbook) throws Exception {
     Path file = temporaryDirectory.resolve("feature.xlsx");
+    try (OutputStream stream = Files.newOutputStream(file)) {
+      workbook.write(stream);
+    }
+    return WorkbookFactory.create(file.toFile());
+  }
+
+  private Workbook writeAndReopenXls(Workbook workbook) throws Exception {
+    Path file = temporaryDirectory.resolve("feature.xls");
     try (OutputStream stream = Files.newOutputStream(file)) {
       workbook.write(stream);
     }
