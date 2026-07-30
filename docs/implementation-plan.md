@@ -77,8 +77,8 @@ deploy/                   Dockerfile、入口脚本、反向代理示例
 
 ## 8. 实施进度
 
-> 最后更新：2026-07-26  
-> 主线分支：`main`，最新提交 `ebcde0f`。四条发布门槛 CI（Excel 技术验证、FastAPI 后端验证、PWA 前端验证、Docker 镜像验证）全绿。
+> 最后更新：2026-07-30  
+> 主线分支：`main`，最新提交 `280b203`。本机（Windows）无 java/maven，2026-07-30 三项技术验证补齐的代码改动已提交但尚未经 CI 运行；待推送后以四条发布门槛 CI（Excel 技术验证、FastAPI 后端验证、PWA 前端验证、Docker 镜像验证）结果为准。
 
 | 阶段 | 状态 | 实际产出 |
 | --- | :---: | --- |
@@ -92,8 +92,9 @@ deploy/                   Dockerfile、入口脚本、反向代理示例
 
 - ✅ **可复现单镜像**（`deploy/Dockerfile` 三阶段：node→maven→python:3.12-slim，非 root + tini，从入仓 lock 文件复现构建）。`requirements.lock` 与 `package-lock.json` 已固化入仓。`docs/deploy.md` 覆盖构建/运行/反代/升级/已知限制。
 - ✅ **Docker 镜像 CI**（`deploy-validation.yml`）：构建镜像 + 冒烟 `/healthz`、`/api/auth/session`(AUTH-001)、SPA 首页。
-- ✅ **不兼容功能拒绝**（AC-015）：`UnsupportedFeatureDetector` 覆盖加密/保护/签名/外链/透视/图表/图片/形状/嵌入对象。VBA 宏与静态数据连接按 ADR-0013 修订容忍。顺带修复加密文件被误报 INPUT-001 的缺陷。
+- ✅ **不兼容功能拒绝**（AC-015）：`UnsupportedFeatureDetector` 覆盖加密/保护/签名/外链/透视/图表/图片/形状/嵌入对象。VBA 宏与静态数据连接按 ADR-0013 修订容忍。顺带修复加密文件被误报 INPUT-001 的缺陷。`.xls` 数字签名探测于 2026-07-30 补齐（`detectHssf` 经 OLE2 根签名流），用合成注入样本验证命中。
 - ✅ **发布测试矩阵（自动化部分）**：单元格级（8 复选框组合 + 代码缩减）在 Java Worker 测试；编排级（行情失败原子性、MARKET-001、并发拒绝 SYSTEM-002、超时 SYSTEM-001、格式透传）在后端测试。逐项映射见 `acceptance-criteria.md` 第 7.1 节。
+- ✅ **技术验证补齐（2026-07-30，代码已提交，待 CI 运行）**：(1) A:D 样式复制不影响 E:S/整行属性的负向边界测试 `WorkbookWriterTest.styleCopyLeavesExistingRowsAndProtectedColumnsUntouched`；(2) `.xls` 数字签名探测实现 + 2 个 HSSF 测试；(3) POI `.xls`/`.xlsx` 已知差异与 Go/No-Go 结论记录为 [ADR-0026](adr/0026-poi-hssf-xssf-known-differences.md)（Go，附两条 No-Go 触发条件）。
 
 ### 下次接续点（工作 ④：部署联调）
 
@@ -102,6 +103,6 @@ deploy/                   Dockerfile、入口脚本、反向代理示例
 1. **目标 Linux Docker 主机实测**：用真实环境变量（`STORPT_PASSWORD_HASH`、`STORPT_SESSION_SECRET`）启动镜像，在 HTTPS 反代后跑通完整登录→上传→处理→下载流程。
 2. **真实 AKShare 实时冒烟**：用真实 A 股代码与指定交易日验证行情链路（设计第 5 节"少量实时冒烟"）。
 3. **跨浏览器关键流程**：iOS Safari、Android/HarmonyOS 主流浏览器的文件重选与下载行为差异（AC 第 7 节第 4 项）。
-4. **`technical-validation.md` 剩余退出条件**：新增 A:D 样式复制不影响 E:S/整行属性的验证；`.xls` 与 `.xlsx` POI 已知差异的最终 Go/No-Go 结论；`.xls` 数字签名探测补齐（待真实签名样本）。
+4. ~~**`technical-validation.md` 剩余退出条件**~~：三项（A:D 样式复制测试、`.xls`/`.xlsx` POI 已知差异 Go/No-Go、`.xls` 数字签名探测）已于 2026-07-30 补齐代码与文档，仅剩「真实签名 `.xls` 样本的精确流名确认」作为 ADR-0026 的 No-Go 触发条件，归入部署联调阶段用真实样本核对。
 
 > 备注：本机（Windows）无 docker/node/java，所有可自动化验证在 GitHub Actions 完成。后端 pytest 在本机 Python 3.14 上 success-path（TestClient）有偶发不稳定性，以 CI 的 Python 3.12 结果为准。
