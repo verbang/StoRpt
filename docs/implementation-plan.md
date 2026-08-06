@@ -77,8 +77,8 @@ deploy/                   Dockerfile、入口脚本、反向代理示例
 
 ## 8. 实施进度
 
-> 最后更新：2026-07-31  
-> 主线分支：`main`，最新提交 `c26d7a6`（已同步 origin）。三条发布门槛 CI（Excel 技术验证、PWA 前端验证、Docker 镜像验证）全绿。**FastAPI 后端验证（backend-validation）有预存的 `TestClient` teardown 竞态**，会在 job 超时处 cancel，与本次改动无关（见下方「已知问题」）。
+> 最后更新：2026-08-06  
+> 主线分支：`main`。三条发布门槛 CI（Excel 技术验证、PWA 前端验证、Docker 镜像验证）全绿。**FastAPI 后端验证（backend-validation）已定位并修复一个被误诊为「teardown 竞态」的真实生产缺陷**：`service.py` 用 `ZoneInfo('Asia/Shanghai')` 生成下载文件名（AC-044），但 `requirements.lock` 与 `python:3.12-slim` 镜像都不含 `tzdata`，导致每次成功处理在命名那步抛 `ZoneInfoNotFoundError` 并被吞成 `SYSTEM-004`。本机（Windows, 无 tzdata）因此 15/15 必现失败，曾与概率性的 TestClient teardown hang 混淆。修复：把 `tzdata>=2024.2` 加入运行时依赖并 pin `tzdata==2026.3`。残留的概率性 teardown hang 另记（见下方「后续待办」第 5 项）。
 
 | 阶段 | 状态 | 实际产出 |
 | --- | :---: | --- |
@@ -86,7 +86,7 @@ deploy/                   Dockerfile、入口脚本、反向代理示例
 | 2. Excel Worker 与后端核心 | ✅ 完成 | 模板解析、时间段校验、A:D 白名单写入、保存后自检、原子发布；FastAPI 任务编排、AKShare 适配、重试、临时文件清理、错误模型。 |
 | 3. PWA 界面与认证 | ✅ 完成 | 单用户登录、两次上传、表单校验、响应式布局、SSE 进度、错误复制、自动/手动下载、本地命名计数。 |
 | 4. 集成测试与部署 | 🟡 进行中 | 自动化部分全绿；剩余为部署联调（见下方「后续待办」）。 |
-| 5. 缓冲与修复 | 🟡 进行中 | 2026-07-30 已修复 `.xls` 签名探测首次 CI 报错（`bfc703a`，流名修正为 MS-OFFCRYPTO 权威值）；backend-validation 竞态待修。 |
+| 5. 缓冲与修复 | 🟡 进行中 | 2026-07-30 已修复 `.xls` 签名探测首次 CI 报错（`bfc703a`）；2026-08-06 修复被误诊为 teardown 竞态的 `tzdata` 缺失生产缺陷（`ZoneInfo('Asia/Shanghai')` → `SYSTEM-004`）。残留概率性 teardown hang 待 CI（Python 3.12）复测确认。 |
 
 ### 第 4 阶段子项进度
 
@@ -109,6 +109,20 @@ deploy/                   Dockerfile、入口脚本、反向代理示例
 
 诊断并记录了 backend-validation 的预存竞态（详见下方「后续待办」第 5 项），未提交未验证的代码修复。
 
+### 本次工作记录（2026-08-06）
+
+重新诊断 backend-validation 失败，推翻「TestClient teardown 竞态」的归因，定位到真实根因并修复：
+
+| 项 | 内容 |
+| --- | --- |
+| **真实根因** | `service.py:182` `datetime.now(ZoneInfo('Asia/Shanghai'))` 生成下载文件名（AC-044）。`requirements.lock` 与 `deploy/Dockerfile`（`python:3.12-slim`）均不含 `tzdata`，而 slim 镜像与 Windows 无系统时区数据库，故 `ZoneInfo` 抛 `ZoneInfoNotFoundError`，被 `_execute` 的 `except Exception` 吞成 `SYSTEM-004`。 |
+| **为何长期误诊** | 该异常发生在后台任务 `_process` 末尾（写完文件后的命名步），表现为任务停在 `verify` 后 failed；在 CI 上与概率性的 TestClient teardown hang 叠加，被一并归为「竞态」。 |
+| **实证链** | (1) 直接驱动 `_execute` 抓到 `ZoneInfoNotFoundError` traceback；(2) 卸载 tzdata 后 `pytest backend/tests` 必现 `SYSTEM-004` 失败（15/15）；(3) 装 `tzdata==2026.3` 后 19 passed/1 skipped。 |
+| **修复** | `pyproject.toml` 加 `tzdata>=2024.2`（运行时依赖）；`requirements.lock` 手动 pin `tzdata==2026.3`（保持 lock 在 Python 3.12 解析，避免本机 3.14 引入 uvloop/colorama 等无关漂移）。 |
+| **生产影响** | 修复前镜像在 `python:3.12-slim` 内**每次成功处理都会在命名步崩成 SYSTEM-004**，即根本无法产出可下载文件——属发布阻断级缺陷，远超「CI gate 噪声」。 |
+
+> 残留：概率性 TestClient teardown hang（本机 Win+Py3.14 约 10～20%、全套测试时偶发）依旧存在，单测不复现，疑似多测试间事件循环 teardown 与 starlette 1.3.1/httpx 0.28 传输层的交互。本机无 Python 3.12，下一步把 tzdata 修复推上 CI，在 Ubuntu+Py3.12 下确认 backend-validation 是否就此稳定；若仍 hang，再按第 5 项候选方向处理。
+
 ### 后续待办清单
 
 按优先级排列。**第 1～4 项依赖真实运行环境/数据/设备，无法在 CI 内完成**；第 5 项是代码层修复。
@@ -117,12 +131,12 @@ deploy/                   Dockerfile、入口脚本、反向代理示例
 2. **【部署联调】真实 AKShare 实时冒烟**：用真实 A 股代码与指定交易日验证行情链路——沪深京清单、不复权开/收盘价取值、休市/停牌按 MARKET 错误显式失败、网络异常重试 3 次（AC-023/024/025）。依赖第 1 项环境就绪。
 3. **【部署联调】跨浏览器关键流程**：iOS Safari、Android/HarmonyOS 主流浏览器的文件重选与下载行为差异（AC 第 7 节第 4 项），差异写入发布说明。依赖第 2 项跑通。
 4. **【部署联调】真实签名 `.xls` 样本流名确认**：取得真实签名样本，核对流名是否在 `_signatures`/`_xmlsignatures`/`\u0005DigitalSignature` 清单内。若不符，作为 ADR-0026 的 No-Go 触发条件处理（扩 HSSF 拒绝范围）。
-5. **【代码修复】backend-validation 的 TestClient teardown 竞态**：
-   - **现象**：`pytest backend/tests` 在 job 超时处 cancel（`The operation was canceled`），pytest 连 `collected N items` 都未输出。
-   - **根因**：`TestClient`（httpx/starlette）退出时与后台 `_execute` 任务/SSE 流的事件循环 teardown 竞态。**与本次任务无关**——2026-07-26 的 `4793afd`/`e9a7ab5`/`ebcde0f` 已尝试修复未根治。
-   - **复现**：本机（Python 3.14）默认模式约 2/15 概率 hang；CI（Ubuntu + Python 3.12）必现。`pytest-timeout` 的 `--timeout` 对 teardown 无效（只对单个测试生效）。
-   - **影响**：仅影响后端编排测试的 CI gate；Excel 技术验证（Java 单元测试）不受影响、已绿。
-   - **候选修复方向**：把 `test_api.py` 里走 TestClient + 真实后台 `_execute` 的 SSE 测试改为直接测 service 层（沿用 `4793afd` 对并发/超时测试的做法），或拆分 CI job 隔离真实 Java 集成测试（`test_worker_integration`）。
-   - **障碍**：本机无 Python 3.12 环境，无法可靠复现 CI 条件；需在 CI 或本地 Python 3.12 环境迭代验证。
+5. **【代码修复，进行中】backend-validation 的两类问题**：
+   - ✅ **已修（2026-08-06）：`tzdata` 缺失导致 `SYSTEM-004`**——见上方「本次工作记录」。这是被误诊为 teardown 竞态的真实根因，属发布阻断级生产缺陷，已通过加入运行时依赖修复。本机 19 passed/1 skipped。
+   - 🟡 **待确认：概率性 TestClient teardown hang**——本机（Windows + Python 3.14）全套测试时约 10～20% 概率 hang，单测不复现，疑似多测试间事件循环 teardown 与 starlette 1.3.1 + httpx 0.28 传输层（TestClient 已发出 `install httpx2` 弃用警告）的交互。
+     - **现象**：`pytest backend/tests` 偶发卡死至 job 超时 cancel。
+     - **候选修复方向**：(a) 把 `test_api.py` 里走 TestClient + 真实后台 `_execute` 的 SSE 测试改为直接测 service 层（沿用 `4793afd` 对并发/超时测试的做法）；(b) 评估升级 `httpx→httpx2` 以匹配 starlette 1.3.1 的 TestClient 新传输；(c) 拆分 CI job 隔离真实 Java 集成测试（`test_worker_integration`）。
+     - **下一步**：先把 tzdata 修复推上 CI（Ubuntu + Python 3.12），确认 backend-validation 是否就此稳定——本机 hang 未必在 CI 复现（环境差异显著）。若 CI 仍 hang，再按上述方向处理。
+     - **障碍**：本机无 Python 3.12 环境，无法可靠复现 CI 条件。
 
 > 备注：本机（Windows）无 docker/node/java，所有可自动化验证在 GitHub Actions 完成。

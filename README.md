@@ -10,10 +10,17 @@ Technical validation, the backend core, the authenticated Vue PWA, the
 reproducible single-image packaging, the unsupported-feature rejection
 (AC-015), and the automated release test matrix are complete. Three of the
 four release-gate workflows are green on `main` (Excel technical validation,
-PWA frontend validation, Docker image validation). The FastAPI backend
-validation workflow has a pre-existing intermittent `TestClient` teardown
-race that cancels runs at the job timeout; it is tracked as a known issue
-unrelated to the current task — see
+PWA frontend validation, Docker image validation).
+
+The FastAPI backend validation workflow previously failed due to a
+**misdiagnosed production defect**: `service.py` stamps the download
+filename with `ZoneInfo('Asia/Shanghai')` (AC-044), but neither
+`requirements.lock` nor the `python:3.12-slim` image shipped `tzdata`, so
+every successful task crashed into `SYSTEM-004` at the naming step. This was
+fixed on 2026-08-06 by adding `tzdata` as a runtime dependency. A residual
+intermittent `TestClient` teardown hang ( unrelated, ~10–20% on the local
+Windows/Python 3.14 host) may remain and is pending confirmation on CI's
+Ubuntu/Python 3.12 — see
 [`docs/implementation-plan.md`](docs/implementation-plan.md) section 8.
 
 The remaining work is deployment-time validation on a real Linux Docker host:

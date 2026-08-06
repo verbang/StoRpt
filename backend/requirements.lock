@@ -94,6 +94,8 @@ tabulate==0.10.0
     # via akshare
 tqdm==4.69.1
     # via akshare
+tzdata==2026.3
+    # via storpt-backend (pyproject.toml)
 typing-extensions==4.16.0
     # via
     #   anyio
